@@ -1,0 +1,272 @@
+import Link from "next/link";
+import WorkspaceShell from "@/components/WorkspaceShell";
+import { money, requireAdmin } from "@/lib/workspace-data";
+import {
+  approvePayoutBatch,
+  cancelPayoutBatch,
+  createPayoutBatch,
+  releasePayoutBatch,
+} from "../actions";
+
+export default async function AdminFinance({
+  searchParams,
+}: {
+  searchParams: Promise<{ ok?: string; error?: string; batch?: string }>;
+}) {
+  const params = await searchParams;
+  const { supabase } = await requireAdmin();
+
+  const [{ data: txns }, { data: batches }, { data: items }, { data: orgs }] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("id, publisher_org_id, publisher_amount_cents, advertiser_price_cents, status, created_at")
+      .eq("status", "billable")
+      .order("created_at", { ascending: false })
+      .limit(400),
+    supabase
+      .from("payout_batches")
+      .select(
+        "id, status, total_cents, item_count, period_start, period_end, notes, approved_at, released_at, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(40),
+    supabase.from("payout_items").select("transaction_id, batch_id, publisher_org_id, amount_cents, status"),
+    supabase
+      .from("organizations")
+      .select("id, legal_name, type")
+      .eq("type", "publisher")
+      .limit(200),
+  ]);
+
+  const usedTxn = new Set((items ?? []).map((i) => i.transaction_id));
+  const eligible = (txns ?? []).filter(
+    (t) => t.publisher_org_id && (t.publisher_amount_cents ?? 0) > 0 && !usedTxn.has(t.id),
+  );
+  const eligibleCents = eligible.reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
+  const gmv = (txns ?? []).reduce((s, t) => s + (t.advertiser_price_cents ?? 0), 0);
+  const payableAll = (txns ?? []).reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
+  const margin = gmv - payableAll;
+
+  const orgName = new Map((orgs ?? []).map((o) => [o.id, o.legal_name]));
+
+  // Payable by publisher (eligible only)
+  const byPub = new Map<string, { name: string; cents: number; n: number }>();
+  for (const t of eligible) {
+    const id = t.publisher_org_id as string;
+    const row = byPub.get(id) ?? {
+      name: orgName.get(id) ?? id.slice(0, 8),
+      cents: 0,
+      n: 0,
+    };
+    row.cents += t.publisher_amount_cents ?? 0;
+    row.n += 1;
+    byPub.set(id, row);
+  }
+
+  const notice =
+    params.error
+      ? params.error
+      : params.ok === "batch_created"
+        ? `Payout batch created${params.batch ? ` · ${params.batch.slice(0, 8)}` : ""}`
+        : params.ok === "approved"
+          ? "Batch approved — ready to release."
+          : params.ok === "released"
+            ? "Batch released · items marked paid."
+            : params.ok === "cancelled"
+              ? "Batch cancelled · payables returned to pool."
+              : null;
+
+  const noticeClass = params.error ? "dashNotice" : "dashNotice";
+
+  return (
+    <WorkspaceShell
+      role="admin"
+      orgName="Qentrax Platform"
+      orgStatus="admin"
+      initials="QX"
+      active="finance"
+      eyebrow="PLATFORM FINANCE"
+      title="Finance & payouts"
+      subtitle="Batch eligible publisher payables, approve, then release. Net-30 policy noted for production."
+    >
+      {notice && (
+        <p className={noticeClass} style={params.error ? { borderColor: "#5a2a2a", color: "#ff8a8a" } : undefined}>
+          {notice}
+        </p>
+      )}
+
+      <div className="dashStats">
+        <article>
+          <header>
+            <span>ELIGIBLE PAYABLE</span>
+            <i>$</i>
+          </header>
+          <strong>{money(eligibleCents)}</strong>
+          <small>{eligible.length} UNBATCHED TXNS</small>
+        </article>
+        <article>
+          <header>
+            <span>BILLABLE GMV</span>
+            <i>↗</i>
+          </header>
+          <strong>{money(gmv)}</strong>
+          <small>ADVERTISER CHARGED</small>
+        </article>
+        <article>
+          <header>
+            <span>PLATFORM MARGIN</span>
+            <i>◎</i>
+          </header>
+          <strong>{money(margin)}</strong>
+          <small>GMV − PUBLISHER SHARE</small>
+        </article>
+        <article>
+          <header>
+            <span>BATCHES</span>
+            <i>▦</i>
+          </header>
+          <strong>{(batches ?? []).length}</strong>
+          <small>ALL STATUSES</small>
+        </article>
+      </div>
+
+      <div className="dashGrid">
+        <article className="dashPanel formPanel">
+          <header>
+            <span>CREATE</span>
+            <h2>Draft payout batch</h2>
+          </header>
+          <p className="formLede">
+            Pulls all billable publisher amounts not already in a batch. Production will enforce Net
+            30 + tax/bank readiness before release.
+          </p>
+          <form action={createPayoutBatch} className="workspace-actions">
+            <label>
+              Notes (optional)
+              <input name="notes" placeholder="Week of Aug 11 · test clearing" />
+            </label>
+            <button
+              className="dashAction"
+              type="submit"
+              disabled={!eligible.length}
+              style={{ marginTop: 12 }}
+            >
+              CREATE BATCH · {eligible.length} ITEMS · {money(eligibleCents)}
+            </button>
+          </form>
+        </article>
+
+        <article className="dashPanel">
+          <header>
+            <span>BY PUBLISHER</span>
+            <h2>Unbatched payables</h2>
+          </header>
+          <div className="tableHead bill">
+            <span>PUBLISHER</span>
+            <span>ITEMS</span>
+            <span>AMOUNT</span>
+          </div>
+          {Array.from(byPub.entries()).map(([id, row]) => (
+            <div className="tableRow bill" key={id}>
+              <span>{row.name}</span>
+              <span>{row.n}</span>
+              <span className="status">{money(row.cents)}</span>
+            </div>
+          ))}
+          {!byPub.size && (
+            <div className="tableRow">
+              <span className="status">No unbatched payables.</span>
+            </div>
+          )}
+        </article>
+      </div>
+
+      <div className="dashPanel">
+        <header>
+          <span>BATCHES</span>
+          <h2>Payout batch queue</h2>
+        </header>
+        <div className="tableHead finance">
+          <span>BATCH</span>
+          <span>STATUS</span>
+          <span>ITEMS</span>
+          <span>TOTAL</span>
+          <span>PERIOD</span>
+          <span>ACTIONS</span>
+        </div>
+        {(batches ?? []).map((b) => (
+          <div className="tableRow finance" key={b.id}>
+            <span>{b.id.slice(0, 8)}</span>
+            <span className="status">{b.status.toUpperCase()}</span>
+            <span>{b.item_count}</span>
+            <span>{money(b.total_cents)}</span>
+            <span>
+              {new Date(b.period_start).toLocaleDateString()} –{" "}
+              {new Date(b.period_end).toLocaleDateString()}
+            </span>
+            <span className="adminActions">
+              {b.status === "pending_approval" && (
+                <>
+                  <form action={approvePayoutBatch}>
+                    <input type="hidden" name="batch_id" value={b.id} />
+                    <button className="dashAction" type="submit" style={{ height: 32, fontSize: 10 }}>
+                      Approve
+                    </button>
+                  </form>
+                  <form action={cancelPayoutBatch}>
+                    <input type="hidden" name="batch_id" value={b.id} />
+                    <button className="dashGhost" type="submit" style={{ height: 32, fontSize: 10 }}>
+                      Cancel
+                    </button>
+                  </form>
+                </>
+              )}
+              {b.status === "approved" && (
+                <>
+                  <form action={releasePayoutBatch}>
+                    <input type="hidden" name="batch_id" value={b.id} />
+                    <button className="dashAction" type="submit" style={{ height: 32, fontSize: 10 }}>
+                      Release
+                    </button>
+                  </form>
+                  <form action={cancelPayoutBatch}>
+                    <input type="hidden" name="batch_id" value={b.id} />
+                    <button className="dashGhost" type="submit" style={{ height: 32, fontSize: 10 }}>
+                      Cancel
+                    </button>
+                  </form>
+                </>
+              )}
+              {b.status === "released" && (
+                <span style={{ color: "#6a7c80", fontSize: 11 }}>
+                  {b.released_at ? new Date(b.released_at).toLocaleString() : "paid"}
+                </span>
+              )}
+              {b.status === "cancelled" && <span style={{ color: "#6a7c80" }}>—</span>}
+            </span>
+          </div>
+        ))}
+        {!batches?.length && (
+          <div className="tableRow">
+            <span className="status">
+              No batches yet. Create one above
+              {(batches === null || batches === undefined) && " (if empty after create, apply the payout migration in Supabase)"}.
+            </span>
+          </div>
+        )}
+      </div>
+
+      <article className="dashPanel metricsNote">
+        <span>FINANCE NOTES</span>
+        <p>
+          Workflow: create batch → approve → release. Release marks payout_items paid. Bank rails
+          and tax readiness checks are Phase 6 hardening. See also{" "}
+          <Link href="/workspace/admin/audit" style={{ color: "var(--acid)" }}>
+            Audit log
+          </Link>
+          .
+        </p>
+      </article>
+    </WorkspaceShell>
+  );
+}
