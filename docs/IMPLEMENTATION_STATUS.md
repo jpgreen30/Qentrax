@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-15 (E2E pass)
+Last updated: 2026-08-15 (E2E pass + publisher dashboard routes)
 
 ## Phase status
 
@@ -28,6 +28,12 @@ life_insurance, personal_loans, auto_insurance, solar, home_services, legal, rea
 - `activate_campaign_if_ready`
 - `run_minimal_auction` (enhanced ranking + budgets + state filter)
 - `record_conversion_event`
+
+## Publisher / Advertiser workspace
+
+- Overview, Sources, Opportunities, Earnings, Reports (chart + funnel), Team
+- Advertiser: Campaigns, Opportunities (disposition), Billing, Reports, Team
+- Fonts enlarged for dashboard stats / tables (dashStats, tableHead)
 
 ## Owner remaining for production money
 
