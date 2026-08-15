@@ -56,9 +56,20 @@ export async function createCampaign(formData: FormData) {
       version: 1,
       created_by: auth.userId,
     });
+
+    const endpointUrl = String(formData.get("endpoint_url") ?? "").trim();
+    if (endpointUrl) {
+      await supabase.from("campaign_endpoints").insert({
+        campaign_id: campaign.id,
+        type: "http_post",
+        endpoint_url: endpointUrl,
+        status: "active",
+        timeout_ms: 8000,
+      });
+    }
   }
 
-  redirect(`/workspace/advertiser?org=${organizationId}`);
+  redirect(`/workspace/advertiser/campaigns?org=${organizationId}`);
 }
 
 export async function postTestFunding(formData: FormData) {
