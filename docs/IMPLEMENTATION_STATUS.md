@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-15 (E2E pass + publisher dashboard routes)
+Last updated: 2026-08-15 (admin Network + Organizations)
 
 ## Phase status
 
@@ -29,11 +29,12 @@ life_insurance, personal_loans, auto_insurance, solar, home_services, legal, rea
 - `run_minimal_auction` (enhanced ranking + budgets + state filter)
 - `record_conversion_event`
 
-## Publisher / Advertiser workspace
+## Workspaces
 
-- Overview, Sources, Opportunities, Earnings, Reports (chart + funnel), Team
-- Advertiser: Campaigns, Opportunities (disposition), Billing, Reports, Team
-- Fonts enlarged for dashboard stats / tables (dashStats, tableHead)
+- **Publisher**: Overview, Sources, Opportunities, Earnings, Reports (chart + funnel), Team
+- **Advertiser**: Overview, Campaigns, Opportunities (disposition), Billing, Reports, Team
+- **Admin**: Approvals queue, **Network** (GMV / margin / live txns / intake), **Organizations** directory
+- Fonts enlarged for dashboard stats / tables
 
 ## Owner remaining for production money
 

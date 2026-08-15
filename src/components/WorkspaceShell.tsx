@@ -26,6 +26,7 @@ const NAV: Record<
   admin: [
     { icon: "⌂", label: "Approvals", path: "" },
     { icon: "▦", label: "Network", path: "/network" },
+    { icon: "◎", label: "Organizations", path: "/organizations" },
   ],
 };
 

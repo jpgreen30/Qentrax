@@ -17,6 +17,18 @@ export async function requireOrg(orgId: string | undefined, expectedType: "adver
   return { supabase, org };
 }
 
+/** Platform admin gate — redirects non-admins away from /workspace/admin/* */
+export async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims) redirect("/sign-in");
+
+  const { data: isAdmin } = await supabase.rpc("is_platform_admin");
+  if (!isAdmin) redirect("/workspace");
+
+  return { supabase, claims: claims.claims };
+}
+
 export function money(cents: number | null | undefined) {
   return `$${((cents ?? 0) / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
