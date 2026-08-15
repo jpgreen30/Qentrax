@@ -106,3 +106,48 @@ export async function activateCampaign(formData: FormData) {
     `/workspace/advertiser?org=${organizationId}${reason ? `&activate=${reason}` : "&activated=1"}`,
   );
 }
+
+export async function recordDisposition(formData: FormData) {
+  const auth = await requireAuthContext();
+  if (!auth) redirect("/sign-in");
+
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const transactionId = String(formData.get("transaction_id") ?? "");
+  const eventType = String(formData.get("event_type") ?? "").trim();
+  const revenueCentsRaw = String(formData.get("revenue_cents") ?? "").trim();
+  const product = String(formData.get("product") ?? "").trim();
+  const externalEventId =
+    String(formData.get("external_event_id") ?? "").trim() ||
+    `ui-${transactionId}-${eventType}-${Date.now()}`;
+
+  if (!organizationId || !transactionId || !eventType) {
+    redirect(`/workspace/advertiser/opportunities?org=${organizationId}&disp=missing`);
+  }
+
+  const allowed = ["contacted", "qualified", "sale", "rejected", "returned", "refunded"];
+  if (!allowed.includes(eventType)) {
+    redirect(`/workspace/advertiser/opportunities?org=${organizationId}&disp=invalid`);
+  }
+
+  const revenueCents =
+    revenueCentsRaw === ""
+      ? null
+      : Number.isFinite(Number(revenueCentsRaw))
+        ? Number(revenueCentsRaw)
+        : null;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_conversion_event", {
+    p_organization_id: organizationId,
+    p_transaction_id: transactionId,
+    p_event_type: eventType,
+    p_external_event_id: externalEventId,
+    p_revenue_cents: revenueCents,
+    p_product: product || null,
+    p_payload: { source: "workspace_ui" },
+  });
+
+  redirect(
+    `/workspace/advertiser/opportunities?org=${organizationId}${error ? "&disp=error" : "&disp=ok"}`,
+  );
+}
