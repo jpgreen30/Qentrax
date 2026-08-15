@@ -26,15 +26,17 @@ export default async function PublisherEarnings({
   const { data: entries } = payableId
     ? await supabase
         .from("ledger_entries")
-        .select("id, direction, amount_cents, created_at")
+        .select("id, direction, amount_cents, occurred_at")
         .eq("account_id", payableId)
-        .order("created_at", { ascending: false })
+        .order("occurred_at", { ascending: false })
         .limit(40)
-    : { data: [] as { id: string; direction: string; amount_cents: number; created_at: string }[] };
+    : { data: [] as { id: string; direction: string; amount_cents: number; occurred_at: string }[] };
 
   const pending = (txns ?? [])
     .filter((t) => t.status === "billable")
     .reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
+
+  const billableCount = (txns ?? []).filter((t) => t.status === "billable").length;
 
   return (
     <WorkspaceShell
@@ -62,7 +64,7 @@ export default async function PublisherEarnings({
             <span>BILLABLE TXNS</span>
             <i>◎</i>
           </header>
-          <strong>{(txns ?? []).filter((t) => t.status === "billable").length}</strong>
+          <strong>{billableCount}</strong>
           <small>ALL VIEW</small>
         </article>
         <article>
@@ -78,13 +80,7 @@ export default async function PublisherEarnings({
             <span>AVG RPL</span>
             <i>⌁</i>
           </header>
-          <strong>
-            {money(
-              (txns ?? []).length
-                ? Math.round(pending / Math.max((txns ?? []).filter((t) => t.status === "billable").length, 1))
-                : 0,
-            )}
-          </strong>
+          <strong>{money(billableCount ? Math.round(pending / billableCount) : 0)}</strong>
           <small>PER LEAD</small>
         </article>
       </div>
@@ -103,7 +99,7 @@ export default async function PublisherEarnings({
           <div className="tableRow bill" key={e.id}>
             <span className="status">{e.direction?.toUpperCase()}</span>
             <span>{money(e.amount_cents)}</span>
-            <span>{new Date(e.created_at).toLocaleString()}</span>
+            <span>{new Date(e.occurred_at).toLocaleString()}</span>
           </div>
         ))}
         {!entries?.length && (
