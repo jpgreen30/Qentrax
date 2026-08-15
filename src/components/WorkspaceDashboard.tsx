@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import WorkspaceShell, { initials as makeInitials } from "@/components/WorkspaceShell";
 
 type Role = "advertiser" | "publisher";
 
@@ -71,202 +72,156 @@ export default function WorkspaceDashboard(props: WorkspaceDashboardProps) {
     stats,
     healthScore,
     rows,
-    initials,
-    roleLabel = "ACCOUNT OWNER",
+    initials: init,
     primaryAction,
     secondaryPanel,
     listTitle,
     listSubtitle,
+    orgId,
   } = props;
-
-  const portal = role === "advertiser" ? "ADVERTISER PORTAL" : "PUBLISHER PORTAL";
-  const eyebrow = role === "advertiser" ? "DEMAND COMMAND" : "SUPPLY COMMAND";
-  const nav =
-    role === "advertiser"
-      ? [
-          ["⌂", "Overview"],
-          ["◎", "Campaigns"],
-          ["◇", "Opportunities"],
-          ["⇄", "Integrations"],
-          ["$", "Billing"],
-          ["▦", "Reports"],
-        ]
-      : [
-          ["⌂", "Overview"],
-          ["◎", "Sources"],
-          ["◇", "Opportunities"],
-          ["⇄", "Integrations"],
-          ["$", "Earnings"],
-          ["▦", "Reports"],
-        ];
 
   const chartLabel = role === "advertiser" ? "CAMPAIGN PERFORMANCE" : "EARNINGS PERFORMANCE";
   const chartTitle =
     role === "advertiser" ? "Spend and accepted opportunities" : "Revenue and accepted volume";
   const healthLabel = role === "advertiser" ? "CAMPAIGN HEALTH" : "SOURCE HEALTH";
+  const eyebrow = role === "advertiser" ? "DEMAND COMMAND" : "SUPPLY COMMAND";
 
   return (
-    <main className={`dash ${role}`}>
-      <aside className="dashSide">
-        <Link className="dashBrand" href="/">
-          <i>Q</i>
-          <span>
-            QENTRAX<small>{portal}</small>
-          </span>
-        </Link>
-        <nav>
-          {nav.map(([icon, label], i) => (
-            <button key={label} type="button" className={i === 0 ? "active" : ""}>
-              <i>{icon}</i>
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="dashSupport">
-          <span>NEED HELP?</span>
-          <p>Talk to the Qentrax network team.</p>
-          <a href="mailto:network@qentrax.io">CONTACT SUPPORT ↗</a>
-          <p style={{ marginTop: 12 }}>
-            <Link href="/workspace">← All workspaces</Link>
-          </p>
-        </div>
-        <div className="dashUser">
-          <i>{initials}</i>
-          <span>
-            {orgName}
-            <small>
-              {roleLabel} · {orgStatus}
-            </small>
-          </span>
-          <b>⋮</b>
-        </div>
-      </aside>
-      <section className="dashMain">
-        <header className="dashTop">
-          <div>
-            <span>
-              <i /> {eyebrow}
-            </span>
-            <h1>Good morning, {orgName}.</h1>
-            <p>{subtitle}</p>
+    <WorkspaceShell
+      role={role}
+      orgId={orgId}
+      orgName={orgName}
+      orgStatus={orgStatus}
+      initials={init || makeInitials(orgName)}
+      active="overview"
+      eyebrow={eyebrow}
+      title={`Good morning, ${orgName}.`}
+      subtitle={subtitle}
+      primaryAction={primaryAction}
+    >
+      <div className="dashStats">
+        {stats.map((s) => (
+          <article key={s.label}>
+            <header>
+              <span>{s.label}</span>
+              <i>{s.icon}</i>
+            </header>
+            <strong>{s.value}</strong>
+            <small>{s.meta}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="dashGrid">
+        <article className="performance">
+          <header>
+            <div>
+              <span>{chartLabel}</span>
+              <h2>{chartTitle}</h2>
+            </div>
+            <div className="range">
+              <button type="button">7D</button>
+              <button type="button" className="on">
+                30D
+              </button>
+              <button type="button">90D</button>
+            </div>
+          </header>
+          <div className="chart">
+            <div className="ylabels">
+              <span>$80K</span>
+              <span>$60K</span>
+              <span>$40K</span>
+              <span>$20K</span>
+              <span>$0</span>
+            </div>
+            {chartSvg}
+            <div className="xlabels">
+              <span>W1</span>
+              <span>W2</span>
+              <span>W3</span>
+              <span>W4</span>
+              <span>NOW</span>
+            </div>
           </div>
-          <div>{primaryAction}</div>
-        </header>
-
-        <div className="dashStats">
-          {stats.map((s) => (
-            <article key={s.label}>
-              <header>
-                <span>{s.label}</span>
-                <i>{s.icon}</i>
-              </header>
-              <strong>{s.value}</strong>
-              <small>{s.meta}</small>
-            </article>
+        </article>
+        <article className="health">
+          <header>
+            <span>{healthLabel}</span>
+            <b>LIVE</b>
+          </header>
+          <div className="healthRing">
+            <strong>{healthScore}</strong>
+            <small>HEALTH SCORE</small>
+          </div>
+          {[
+            ["QUALITY", 94],
+            ["DELIVERY", 98],
+            ["COMPLIANCE", 100],
+            ["FEEDBACK", 87],
+          ].map(([label, val]) => (
+            <p key={label as string}>
+              <span>{label}</span>
+              <i>
+                <b style={{ width: `${val}%` }} />
+              </i>
+              <strong>{val}</strong>
+            </p>
           ))}
-        </div>
+        </article>
+      </div>
 
-        <div className="dashGrid">
-          <article className="performance">
-            <header>
-              <div>
-                <span>{chartLabel}</span>
-                <h2>{chartTitle}</h2>
-              </div>
-              <div className="range">
-                <button type="button">7D</button>
-                <button type="button" className="on">
-                  30D
-                </button>
-                <button type="button">90D</button>
-              </div>
-            </header>
-            <div className="chart">
-              <div className="ylabels">
-                <span>$80K</span>
-                <span>$60K</span>
-                <span>$40K</span>
-                <span>$20K</span>
-                <span>$0</span>
-              </div>
-              {chartSvg}
-              <div className="xlabels">
-                <span>W1</span>
-                <span>W2</span>
-                <span>W3</span>
-                <span>W4</span>
-                <span>NOW</span>
-              </div>
+      <div className="dashLower">
+        <article className="liveTable">
+          <header>
+            <div>
+              <span>{listTitle}</span>
+              <h2>{listSubtitle}</h2>
             </div>
-          </article>
-          <article className="health">
-            <header>
-              <span>{healthLabel}</span>
-              <b>LIVE</b>
-            </header>
-            <div className="healthRing">
-              <strong>{healthScore}</strong>
-              <small>HEALTH SCORE</small>
+            <Link
+              href={
+                role === "advertiser"
+                  ? `/workspace/advertiser/opportunities?org=${orgId}`
+                  : `/workspace/publisher/opportunities?org=${orgId}`
+              }
+              className="dashGhost"
+            >
+              VIEW ALL ↗
+            </Link>
+          </header>
+          <div className="tableHead">
+            <span>ID</span>
+            <span>VERTICAL</span>
+            <span>SCORE</span>
+            <span>STATUS</span>
+            <span>VALUE</span>
+          </div>
+          {rows.length === 0 && (
+            <div className="tableRow">
+              <span>—</span>
+              <span>—</span>
+              <span>—</span>
+              <span className="status">NO DATA YET</span>
+              <span>—</span>
             </div>
-            {[
-              ["QUALITY", 94],
-              ["DELIVERY", 98],
-              ["COMPLIANCE", 100],
-              ["FEEDBACK", 87],
-            ].map(([label, val]) => (
-              <p key={label as string}>
-                <span>{label}</span>
-                <i>
-                  <b style={{ width: `${val}%` }} />
-                </i>
-                <strong>{val}</strong>
-              </p>
-            ))}
-          </article>
-        </div>
-
-        <div className="dashLower">
-          <article className="liveTable">
-            <header>
-              <div>
-                <span>{listTitle}</span>
-                <h2>{listSubtitle}</h2>
-              </div>
-            </header>
-            <div className="tableHead">
-              <span>ID</span>
-              <span>VERTICAL</span>
-              <span>SCORE</span>
-              <span>STATUS</span>
-              <span>VALUE</span>
+          )}
+          {rows.map((r) => (
+            <div className="tableRow" key={r.id}>
+              <span>{r.id}</span>
+              <span>{r.vertical}</span>
+              <span>{r.score}</span>
+              <span className="status">{r.status}</span>
+              <span>{r.value}</span>
             </div>
-            {rows.length === 0 && (
-              <div className="tableRow">
-                <span>—</span>
-                <span>—</span>
-                <span>—</span>
-                <span className="status">NO DATA YET</span>
-                <span>—</span>
-              </div>
-            )}
-            {rows.map((r) => (
-              <div className="tableRow" key={r.id}>
-                <span>{r.id}</span>
-                <span>{r.vertical}</span>
-                <span>{r.score}</span>
-                <span className="status">{r.status}</span>
-                <span>{r.value}</span>
-              </div>
-            ))}
-          </article>
-          <article className="quick">
-            <header>
-              <span>QUICK ACTIONS</span>
-            </header>
-            {secondaryPanel}
-          </article>
-        </div>
-      </section>
-    </main>
+          ))}
+        </article>
+        <article className="quick">
+          <header>
+            <span>QUICK ACTIONS</span>
+          </header>
+          {secondaryPanel}
+        </article>
+      </div>
+    </WorkspaceShell>
   );
 }
