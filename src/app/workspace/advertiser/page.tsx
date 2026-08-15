@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import WorkspaceDashboard from "@/components/WorkspaceDashboard";
 import { createClient } from "@/lib/supabase/server";
+import { PRIMARY_VERTICALS } from "@/lib/verticals";
 import { activateCampaign, createCampaign, postTestFunding } from "./actions";
 
 function money(cents: number | null | undefined) {
@@ -173,7 +174,21 @@ export default async function AdvertiserWorkspace({
             <input type="hidden" name="organization_id" value={orgId} />
             <label>
               Campaign name
-              <input name="name" required placeholder="CA solar — exclusive" />
+              <input name="name" required placeholder="CA auto — exclusive" />
+            </label>
+            <label>
+              Vertical
+              <select name="vertical_code" defaultValue="auto_insurance" required>
+                {PRIMARY_VERTICALS.map((v) => (
+                  <option key={v.code} value={v.code}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              States (optional, comma-separated)
+              <input name="states" placeholder="CA,TX,AZ" />
             </label>
             <label>
               Base bid (cents)
