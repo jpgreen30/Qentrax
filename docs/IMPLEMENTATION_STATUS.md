@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-15 (admin Finance + Audit + org controls)
+Last updated: 2026-08-15 (automated payout scheduling + Finance UI)
 
 ## Phase status
 
@@ -13,7 +13,7 @@ Last updated: 2026-08-15 (admin Finance + Audit + org controls)
 | 3 Sources/intake | **Live** | Sources + schema-validated opportunity intake |
 | 4 Marketplace | **Live (in-DB)** | Multi-candidate auction, delivery record, billable txn + journals |
 | 5 Attribution | **Live (API)** | `POST /api/v1/conversions` + `record_conversion_event` |
-| 6 Returns/payouts | **UI live** | Payout batches create → approve → release; Net-30 rails later |
+| 6 Returns/payouts | **Live** | Batches create → approve → release; **automated Net-N schedule** (cron + config) |
 | 7 Hardening | Not started | Load tests, real endpoint HTTP worker, Stripe prod |
 
 ## Admin portal
@@ -21,12 +21,21 @@ Last updated: 2026-08-15 (admin Finance + Audit + org controls)
 - Approvals queue (KYB approve/reject)
 - Network (GMV, margin, live txns, intake)
 - Organizations directory + **suspend/reinstate** (reason required)
-- **Finance** — eligible payables, payout batch create/approve/release/cancel
+- **Finance** — eligible payables, manual + scheduled batches, approve/release/cancel, schedule config panel
 - **Audit** — append-only event stream with action mix
 
-## Migration required
+## Automated payout scheduling
 
-Apply `supabase/migrations/20260815220000_payout_batches.sql` in the Supabase SQL editor (or CLI) so Finance batch create works against `payout_batches` / `payout_items`.
+- Table: `payout_schedule_config` (singleton id=1)
+- Runner: `src/lib/payouts/schedule.ts` (`runScheduledPayout`, `computeNextRunAt`, `recordScheduleRun`)
+- Cron: `GET/POST /api/cron/payouts` (Vercel cron `0 14 * * *`, protected by `CRON_SECRET`)
+- UI: Finance → enable cadence (daily/weekly/biweekly/monthly), Net days, min batch, auto-approve, Run now
+- Requires Vercel env: `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`
+
+## Migrations applied
+
+- `20260815220000_payout_batches.sql` — batches + items
+- `20260815230000_payout_schedule.sql` — schedule config (applied 2026-08-15)
 
 ## Owner remaining for production money
 
@@ -34,4 +43,4 @@ Apply `supabase/migrations/20260815220000_payout_batches.sql` in the Supabase SQ
 2. Buyer endpoint HTTP worker (today: simulated accept)  
 3. PX API token when client onboarded  
 4. Counsel agreements / KYB  
-5. Net-30 eligibility filter + tax/bank readiness on release  
+5. Tax/bank readiness + actual ACH/Stripe Connect on release  
