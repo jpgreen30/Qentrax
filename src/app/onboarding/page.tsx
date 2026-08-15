@@ -3,6 +3,12 @@ import { redirect } from "next/navigation";
 import { createOrganization } from "./actions";
 import { requireAuthContext } from "@/lib/auth-context";
 
+const ERRORS: Record<string, string> = {
+  invalid: "Check account type and legal name.",
+  create: "Could not create organization. Sign out/in once, then try again.",
+  role: "Owner role is missing from the database seed.",
+};
+
 export default async function OnboardingPage({
   searchParams,
 }: {
@@ -57,7 +63,7 @@ export default async function OnboardingPage({
         </form>
         {state.error && (
           <p className="notice" role="alert">
-            Could not create organization. Check fields and try again.
+            {ERRORS[state.error] ?? "Could not create organization. Try again."}
           </p>
         )}
         <p className="lede">

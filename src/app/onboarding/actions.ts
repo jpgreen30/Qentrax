@@ -2,8 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/lib/auth-context";
-import { ownerRoleForType } from "@/lib/permissions";
-import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createOrganization(formData: FormData) {
@@ -21,52 +19,23 @@ export async function createOrganization(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const roleCode = ownerRoleForType(type);
-  const { data: role } = await supabase.from("roles").select("id").eq("code", roleCode).single();
-  if (!role) redirect("/onboarding?error=role");
-
-  const { data: org, error } = await supabase
-    .from("organizations")
-    .insert({
-      type,
-      legal_name: legalName,
-      dba_name: dbaName || null,
-      website: website || null,
-      tax_country: taxCountry || "US",
-      onboarding_status: "profile_submitted",
-    })
-    .select("id")
-    .single();
-
-  if (error || !org) redirect("/onboarding?error=create");
-
-  await supabase.from("organization_members").insert({
-    organization_id: org.id,
-    user_id: auth.userId,
-    role_id: role.id,
-    status: "active",
-    joined_at: new Date().toISOString(),
+  const { data, error } = await supabase.rpc("register_organization", {
+    p_type: type,
+    p_legal_name: legalName,
+    p_dba_name: dbaName || null,
+    p_website: website || null,
+    p_tax_country: taxCountry || "US",
   });
 
-  await supabase.from("organization_profiles").insert({
-    organization_id: org.id,
-    kyb_status: "not_started",
-  });
+  if (error || !data) {
+    redirect(`/onboarding?error=create`);
+  }
 
-  await supabase.from("financial_accounts").insert({
-    organization_id: org.id,
-    type: type === "advertiser" ? "advertiser_balance" : "publisher_payable",
-    currency: "USD",
-  });
+  const orgId =
+    typeof data === "object" && data !== null && "id" in data
+      ? String((data as { id: string }).id)
+      : null;
 
-  await supabase.from("audit_events").insert({
-    actor_user_id: auth.userId,
-    actor_org_id: org.id,
-    action: "organization.created",
-    resource_type: "organization",
-    resource_id: org.id,
-    request_id: requestId(),
-  });
-
-  redirect(`/workspace?org=${org.id}`);
+  if (!orgId) redirect("/onboarding?error=create");
+  redirect(`/workspace?org=${orgId}`);
 }
