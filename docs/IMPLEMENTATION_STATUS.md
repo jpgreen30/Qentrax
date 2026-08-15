@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-08-15 (admin Network + Organizations)
+Last updated: 2026-08-15 (admin Finance + Audit + org controls)
 
 ## Phase status
 
@@ -8,33 +8,25 @@ Last updated: 2026-08-15 (admin Network + Organizations)
 |---|---|---|
 | 0 Foundation | **Complete** | Auth, RLS, magic-link, bootstrap |
 | Marketing site | **Complete** | Design system + dashboard previews |
-| 1 Accounts | **Live** | Org register, admin approve, memberships |
+| 1 Accounts | **Live** | Org register, admin approve/reject/suspend/reinstate |
 | 2 Campaigns/funding | **Live (test)** | Draft/activate, vertical + state targeting, test ledger funding |
 | 3 Sources/intake | **Live** | Sources + schema-validated opportunity intake |
 | 4 Marketplace | **Live (in-DB)** | Multi-candidate auction, delivery record, billable txn + journals |
 | 5 Attribution | **Live (API)** | `POST /api/v1/conversions` + `record_conversion_event` |
-| 6 Returns/payouts | Partial | Publisher payable ledger exists; batch payout UI not started |
+| 6 Returns/payouts | **UI live** | Payout batches create → approve → release; Net-30 rails later |
 | 7 Hardening | Not started | Load tests, real endpoint HTTP worker, Stripe prod |
 
-## Primary verticals
+## Admin portal
 
-life_insurance, personal_loans, auto_insurance, solar, home_services, legal, real_estate  
-(with ping/post field schemas)
+- Approvals queue (KYB approve/reject)
+- Network (GMV, margin, live txns, intake)
+- Organizations directory + **suspend/reinstate** (reason required)
+- **Finance** — eligible payables, payout batch create/approve/release/cancel
+- **Audit** — append-only event stream with action mix
 
-## Key RPCs
+## Migration required
 
-- `register_organization`
-- `record_test_funding`
-- `activate_campaign_if_ready`
-- `run_minimal_auction` (enhanced ranking + budgets + state filter)
-- `record_conversion_event`
-
-## Workspaces
-
-- **Publisher**: Overview, Sources, Opportunities, Earnings, Reports (chart + funnel), Team
-- **Advertiser**: Overview, Campaigns, Opportunities (disposition), Billing, Reports, Team
-- **Admin**: Approvals queue, **Network** (GMV / margin / live txns / intake), **Organizations** directory
-- Fonts enlarged for dashboard stats / tables
+Apply `supabase/migrations/20260815220000_payout_batches.sql` in the Supabase SQL editor (or CLI) so Finance batch create works against `payout_batches` / `payout_items`.
 
 ## Owner remaining for production money
 
@@ -42,3 +34,4 @@ life_insurance, personal_loans, auto_insurance, solar, home_services, legal, rea
 2. Buyer endpoint HTTP worker (today: simulated accept)  
 3. PX API token when client onboarded  
 4. Counsel agreements / KYB  
+5. Net-30 eligibility filter + tax/bank readiness on release  
