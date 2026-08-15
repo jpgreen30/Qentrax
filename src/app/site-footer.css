@@ -1,0 +1,53 @@
+/* Site footer — high specificity vs global .shell / footer rules */
+footer.sitefoot.shell,footer.sitefoot,.sitefoot.shell,.sitefoot{
+  display:grid!important;
+  grid-template-columns:.8fr 1.4fr 1fr!important;
+  align-items:center!important;
+  gap:20px;
+  padding:55px 0;
+  width:min(1180px,calc(100% - 48px));
+  margin-inline:auto;
+  border:0;
+  position:static;
+  flex-direction:unset;
+  justify-content:unset;
+}
+.sitefoot p{color:#68787b;font-size:12px;margin:0}
+.sitefoot>div{display:flex!important;justify-content:flex-end;gap:18px;flex-wrap:wrap}
+.sitefoot div a{font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#9ba8aa;text-decoration:none}
+.sitefoot>small{grid-column:1/-1;margin-top:50px;color:#536166;font:8px var(--mono)}
+footer.advFooter.shell,footer.advFooter,.advFooter{
+  display:grid!important;
+  grid-template-columns:.8fr 1.4fr 1fr!important;
+  align-items:center!important;
+  gap:24px;
+  padding:50px 0;
+  width:min(1180px,calc(100% - 48px));
+  margin-inline:auto;
+  border:0;
+}
+.advFooter p{color:#738287;font-size:12px;margin:0}
+.advFooter>div{display:flex;justify-content:flex-end;gap:14px;flex-wrap:wrap}
+.advFooter>div a{font:8px var(--mono);color:#829093;text-decoration:none}
+.advFooter>small{font:8px var(--mono);color:#536367;grid-column:1/-1;margin-top:28px}
+footer.blogFooter.shell,footer.blogFooter,.blogFooter{
+  display:grid!important;
+  grid-template-columns:.8fr 1.4fr 1fr!important;
+  align-items:center!important;
+  gap:20px;
+  padding:55px 0;
+  width:min(1180px,calc(100% - 48px));
+  margin-inline:auto;
+  border:0;
+}
+.blogFooter p{color:#65777b;font-size:11px;margin:0}
+.blogFooter>div{display:flex;justify-content:flex-end;gap:18px;flex-wrap:wrap}
+.blogFooter>div a{font:9px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#89999c;text-decoration:none}
+.blogFooter>small{font:7px var(--mono);color:#4f6165;grid-column:1/-1;margin-top:35px}
+@media(max-width:900px){
+  footer.sitefoot.shell,footer.sitefoot,.sitefoot,
+  footer.advFooter.shell,footer.advFooter,
+  footer.blogFooter.shell,footer.blogFooter{grid-template-columns:1fr!important;gap:18px}
+  .sitefoot>div,.advFooter>div,.blogFooter>div{justify-content:flex-start}
+  .sitefoot>small,.advFooter>small,.blogFooter>small{margin-top:15px}
+}
