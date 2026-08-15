@@ -1,6 +1,6 @@
 # Delivery tasks
 
-- [ ] Phase 0: provision Supabase/Vercel; apply migration; verify authenticated tenant shell and preview CI
+- [ ] Phase 0: link Vercel, configure environment, implement Supabase SSR auth, and verify authenticated tenant shell/preview CI (database migration complete)
 - [ ] Phase 1: identity schema, RBAC permissions, onboarding state machines, agreements, KYB/KYC adapters, admin approvals
 - [ ] Phase 2: versioned campaigns, eligibility, endpoint tests, Stripe funding, balanced advertiser ledger
 - [ ] Phase 3: approved publisher sources, consent templates, scoped credentials, REST/ping-post controlled tests

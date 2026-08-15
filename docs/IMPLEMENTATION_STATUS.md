@@ -10,7 +10,7 @@ The supplied workspace initially contained only `Qentrax_Codex_Master_Build_Spec
 
 | Phase | Status | Evidence / remaining gate |
 |---|---|---|
-| 0 Foundation | In progress | App/API shell, migration, RLS, request IDs, audit utility, reason codes, tests and CI implemented. Live Supabase auth and preview deployment require owner configuration. |
+| 0 Foundation | In progress | App/API shell, live Qentrax Supabase migration/RLS, request IDs, audit utility, reason codes, tests and CI implemented. Authenticated session flow and Vercel preview remain. |
 | 1 Accounts/onboarding | Not started | Track in `docs/TASKS.md` |
 | 2 Campaigns/funding | Not started | Track in `docs/TASKS.md` |
 | 3 Sources/intake | Not started | Track in `docs/TASKS.md` |
@@ -20,3 +20,10 @@ The supplied workspace initially contained only `Qentrax_Codex_Master_Build_Spec
 | 7 Hardening | Not started | Track in `docs/TASKS.md` |
 
 Phase 0 is intentionally not marked complete until the canonical authenticated organization-shell acceptance test runs against an owner-provisioned Supabase project and CI preview.
+
+### Live infrastructure verification
+
+- Supabase project `Qentrax` (`wmrfdzkcjtceuhloerte`) is active in `us-west-2`.
+- Foundation and foreign-key-index migrations applied successfully.
+- All seven public tables have RLS enabled; the security advisor reports no findings.
+- Seed verification: 3 roles and 6 stable reason codes.
