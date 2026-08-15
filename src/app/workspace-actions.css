@@ -16,7 +16,8 @@
   color: #748589;
   text-transform: uppercase;
 }
-.workspace-actions input {
+.workspace-actions input,
+.workspace-actions select {
   background: #061013;
   border: 1px solid #34464b;
   color: #edf3ef;
