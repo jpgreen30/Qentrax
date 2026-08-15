@@ -1,6 +1,33 @@
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
 
+const chartSvg = (
+  <svg viewBox="0 0 700 230" preserveAspectRatio="none" aria-label="Spend trend">
+    <defs>
+      <linearGradient id="g-reports-adv" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#caff4b" stopOpacity=".25" />
+        <stop offset="1" stopColor="#caff4b" stopOpacity="0" />
+      </linearGradient>
+    </defs>
+    <path
+      className="area"
+      d="M0 200 C60 185 80 120 145 145 S230 178 290 100 S390 130 440 72 S540 120 590 55 S660 75 700 30 L700 230 L0 230Z"
+      fill="url(#g-reports-adv)"
+    />
+    <path
+      className="line"
+      d="M0 200 C60 185 80 120 145 145 S230 178 290 100 S390 130 440 72 S540 120 590 55 S660 75 700 30"
+    />
+    <g className="dots">
+      <circle cx="145" cy="145" r="4" />
+      <circle cx="290" cy="100" r="4" />
+      <circle cx="440" cy="72" r="4" />
+      <circle cx="590" cy="55" r="4" />
+      <circle cx="700" cy="30" r="4" />
+    </g>
+  </svg>
+);
+
 export default async function AdvertiserReports({
   searchParams,
 }: {
@@ -32,6 +59,8 @@ export default async function AdvertiserReports({
   const billable = (txns ?? []).filter((t) => t.status === "billable").length;
   const sales = (conversions ?? []).filter((c) => c.event_type === "sale");
   const revenue = sales.reduce((s, c) => s + (c.revenue_cents ?? 0), 0);
+  const avgCpl = billable ? Math.round(spend / billable) : 0;
+  const roas = spend > 0 ? (revenue / spend).toFixed(2) : "—";
 
   const byCampaign = new Map<string, { name: string; count: number; spend: number }>();
   for (const c of campaigns ?? []) {
@@ -39,11 +68,17 @@ export default async function AdvertiserReports({
   }
   for (const t of txns ?? []) {
     if (!t.campaign_id) continue;
-    const row = byCampaign.get(t.campaign_id) ?? { name: t.campaign_id.slice(0, 8), count: 0, spend: 0 };
+    const row = byCampaign.get(t.campaign_id) ?? {
+      name: t.campaign_id.slice(0, 8),
+      count: 0,
+      spend: 0,
+    };
     row.count += 1;
     row.spend += t.advertiser_price_cents ?? 0;
     byCampaign.set(t.campaign_id, row);
   }
+
+  const funnelMax = Math.max(billable, sales.length, 1);
 
   return (
     <WorkspaceShell
@@ -72,12 +107,12 @@ export default async function AdvertiserReports({
             <i>◎</i>
           </header>
           <strong>{billable}</strong>
-          <small>ACCEPTED</small>
+          <small>AVG CPL {money(avgCpl)}</small>
         </article>
         <article>
           <header>
             <span>SALES</span>
-            <i>$</i>
+            <i>◇</i>
           </header>
           <strong>{sales.length}</strong>
           <small>CONVERSIONS</small>
@@ -88,7 +123,42 @@ export default async function AdvertiserReports({
             <i>▦</i>
           </header>
           <strong>{money(revenue)}</strong>
-          <small>FROM SALES</small>
+          <small>ROAS {roas}x</small>
+        </article>
+      </div>
+
+      <div className="dashGrid">
+        <article className="dashPanel chartPanel">
+          <header>
+            <span>TREND</span>
+            <h2>Spend trajectory</h2>
+          </header>
+          <div className="chart">{chartSvg}</div>
+          <p className="chartCaption">
+            Illustrative shape until daily ledger aggregates are exposed.
+          </p>
+        </article>
+
+        <article className="dashPanel">
+          <header>
+            <span>FUNNEL</span>
+            <h2>Billable → sale</h2>
+          </header>
+          <div className="funnel">
+            <div className="funnelStep">
+              <span>BILLABLE</span>
+              <div className="funnelBar" style={{ width: `${(billable / funnelMax) * 100}%` }} />
+              <b>{billable}</b>
+            </div>
+            <div className="funnelStep">
+              <span>SALES</span>
+              <div className="funnelBar" style={{ width: `${(sales.length / funnelMax) * 100}%` }} />
+              <b>{sales.length}</b>
+            </div>
+            <div className="funnelMeta">
+              Close rate {billable ? `${Math.round((sales.length / billable) * 1000) / 10}%` : "—"}
+            </div>
+          </div>
         </article>
       </div>
 
@@ -138,7 +208,9 @@ export default async function AdvertiserReports({
           ))}
           {!conversions?.length && (
             <div className="tableRow">
-              <span className="status">No conversion events. Use POST /api/v1/conversions.</span>
+              <span className="status">
+                No conversion events. Record dispositions on Opportunities.
+              </span>
             </div>
           )}
         </article>
@@ -148,8 +220,7 @@ export default async function AdvertiserReports({
         <span>METRICS NOTES</span>
         <p>
           Cohort is all transactions visible to this organization. CPL = advertiser charged ÷
-          billable leads in view. Attributed revenue is sum of sale conversion events. Timezone:
-          UTC for ledger dates.
+          billable leads. Attributed revenue is sum of sale events. Timezone: UTC.
         </p>
       </article>
     </WorkspaceShell>
