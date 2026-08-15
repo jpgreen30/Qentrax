@@ -136,7 +136,7 @@ export default function WorkspaceShell(props: WorkspaceShellProps) {
 }
 
 export function money(cents: number | null | undefined) {
-  return `$ ${((cents ?? 0) / 100).toLocaleString(undefined, {
+  return `$${( (cents ?? 0) / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
