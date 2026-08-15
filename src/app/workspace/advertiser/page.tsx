@@ -1,12 +1,35 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import WorkspaceDashboard from "@/components/WorkspaceDashboard";
 import { createClient } from "@/lib/supabase/server";
 import { activateCampaign, createCampaign, postTestFunding } from "./actions";
+
+function money(cents: number | null | undefined) {
+  return `$${((cents ?? 0) / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "AD";
+}
 
 export default async function AdvertiserWorkspace({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string; funded?: string; fund_error?: string; activated?: string; activate?: string }>;
+  searchParams: Promise<{
+    org?: string;
+    funded?: string;
+    fund_error?: string;
+    activated?: string;
+    activate?: string;
+  }>;
 }) {
   const params = await searchParams;
   const orgId = params.org;
@@ -34,91 +57,140 @@ export default async function AdvertiserWorkspace({
     p_organization_id: orgId,
   });
 
+  const { data: txns } = await supabase
+    .from("transactions")
+    .select("id, status, advertiser_price_cents, created_at, opportunity:opportunities(public_transaction_id)")
+    .eq("advertiser_org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  const bal = Number(balance ?? 0);
+  const spend = (txns ?? []).reduce((s, t) => s + (t.advertiser_price_cents ?? 0), 0);
+  const accepted = (txns ?? []).filter((t) => t.status === "billable").length;
+  const activeCampaigns = (campaigns ?? []).filter((c) => c.status === "active").length;
+
+  const rows =
+    (txns ?? []).map((t) => {
+      const opp = t.opportunity as unknown as { public_transaction_id?: string } | null;
+      return {
+        id: opp?.public_transaction_id ?? t.id.slice(0, 8),
+        vertical: "—",
+        score: "—",
+        status: (t.status ?? "").toUpperCase(),
+        value: money(t.advertiser_price_cents),
+      };
+    }) ?? [];
+
+  // Fallback: show campaigns in table if no txns yet
+  const campaignRows =
+    rows.length > 0
+      ? rows
+      : (campaigns ?? []).map((c) => ({
+          id: c.id.slice(0, 8),
+          vertical: "CAMPAIGN",
+          score: money(c.base_bid_cents),
+          status: c.status.toUpperCase(),
+          value: c.daily_budget_cents != null ? money(c.daily_budget_cents) : "—",
+        }));
+
+  const notice =
+    params.funded
+      ? "Test funding posted to ledger."
+      : params.fund_error
+        ? "Funding failed. Minimum $500; must be advertiser member."
+        : params.activated
+          ? "Campaign activated."
+          : params.activate
+            ? `Activation blocked: ${params.activate}. Approve org and fund first.`
+            : null;
+
   return (
-    <main>
-      <nav>
-        <Link className="brand" href="/">
-          QENTRAX
-        </Link>
-        <Link href="/workspace">Workspaces</Link>
-      </nav>
-      <section className="workspace">
-        <p className="eyebrow">ADVERTISER · {org.onboarding_status}</p>
-        <h1>{org.legal_name}</h1>
-        <p className="lede">
-          Available balance:{" "}
-          <strong>${(Number(balance ?? 0) / 100).toFixed(2)}</strong>
-          {" "}· Min opening fund $500 (test mode posts a balanced ledger journal).
-        </p>
-
-        {params.funded && <p className="notice" role="status">Test funding posted to ledger.</p>}
-        {params.fund_error && (
-          <p className="notice" role="alert">
-            Funding failed. Org must be a member advertiser; minimum $500.
-          </p>
-        )}
-        {params.activated && <p className="notice" role="status">Campaign activated.</p>}
-        {params.activate && (
-          <p className="notice" role="alert">
-            Activation blocked: {params.activate}. Approve org and fund first.
-          </p>
-        )}
-
-        <form action={postTestFunding}>
-          <input type="hidden" name="organization_id" value={orgId} />
-          <input type="hidden" name="amount_cents" value={50000} />
-          <button className="button" type="submit">
-            Post $500 test funding
-          </button>
-        </form>
-
-        <form action={createCampaign}>
-          <input type="hidden" name="organization_id" value={orgId} />
-          <label>
-            Campaign name
-            <input name="name" required placeholder="CA solar — exclusive" />
-          </label>
-          <label>
-            Base bid (cents)
-            <input name="base_bid_cents" type="number" min={0} defaultValue={2500} />
-          </label>
-          <label>
-            Daily budget (cents)
-            <input name="daily_budget_cents" type="number" min={0} defaultValue={50000} />
-          </label>
-          <button className="button" type="submit">
-            Create draft campaign
-          </button>
-        </form>
-
-        <div className="tenant-list">
-          {(campaigns ?? []).map((c) => (
-            <div key={c.id} className="tenant-card">
+    <WorkspaceDashboard
+      role="advertiser"
+      orgId={orgId}
+      orgName={org.legal_name}
+      orgStatus={org.onboarding_status}
+      initials={initials(org.legal_name)}
+      subtitle={
+        notice ??
+        `${activeCampaigns} active campaign${activeCampaigns === 1 ? "" : "s"} · ${accepted} billable in view.`
+      }
+      stats={[
+        { label: "AVAILABLE BALANCE", icon: "◫", value: money(bal), meta: bal > 0 ? "FUNDED" : "UNFUNDED" },
+        { label: "SPEND (VIEW)", icon: "↗", value: money(spend), meta: `${(txns ?? []).length} txns` },
+        { label: "BILLABLE LEADS", icon: "◎", value: String(accepted), meta: org.onboarding_status },
+        {
+          label: "CAMPAIGNS",
+          icon: "⌁",
+          value: String((campaigns ?? []).length),
+          meta: `${activeCampaigns} active`,
+        },
+      ]}
+      healthScore={org.onboarding_status === "approved" ? (bal > 0 ? "92" : "71") : "48"}
+      rows={campaignRows}
+      listTitle="LIVE ACTIVITY"
+      listSubtitle={rows.length ? "Recent billable transactions" : "Campaigns"}
+      primaryAction={
+        <>
+          <Link className="dashAction" href={`/workspace/advertiser?org=${orgId}#create`}>
+            ＋ NEW CAMPAIGN
+          </Link>
+        </>
+      }
+      secondaryPanel={
+        <div className="workspace-actions">
+          {notice && <p className="notice">{notice}</p>}
+          <form action={postTestFunding}>
+            <input type="hidden" name="organization_id" value={orgId} />
+            <input type="hidden" name="amount_cents" value={50000} />
+            <button className="quickRow" type="submit">
+              <i>$</i>
               <span>
-                <strong>{c.name}</strong>
-                <small>
-                  {c.status} · bid ${(c.base_bid_cents / 100).toFixed(2)}
-                  {c.daily_budget_cents != null
-                    ? ` · daily $${(c.daily_budget_cents / 100).toFixed(0)}`
-                    : ""}
-                </small>
+                <b>Post $500 test funding</b>
+                <small>Balanced ledger journal (Stripe later)</small>
               </span>
-              {c.status !== "active" && (
-                <form action={activateCampaign}>
-                  <input type="hidden" name="organization_id" value={orgId} />
-                  <input type="hidden" name="campaign_id" value={c.id} />
-                  <button className="button" type="submit">
-                    Activate
-                  </button>
-                </form>
-              )}
-            </div>
-          ))}
-          {!campaigns?.length && (
-            <p className="notice">No campaigns yet. Create a draft above.</p>
-          )}
+              <em>→</em>
+            </button>
+          </form>
+          <form action={createCampaign} id="create">
+            <input type="hidden" name="organization_id" value={orgId} />
+            <label>
+              Campaign name
+              <input name="name" required placeholder="CA solar — exclusive" />
+            </label>
+            <label>
+              Base bid (cents)
+              <input name="base_bid_cents" type="number" min={0} defaultValue={2500} />
+            </label>
+            <label>
+              Daily budget (cents)
+              <input name="daily_budget_cents" type="number" min={0} defaultValue={50000} />
+            </label>
+            <button className="dashAction" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+              Create draft campaign
+            </button>
+          </form>
+          {(campaigns ?? [])
+            .filter((c) => c.status !== "active")
+            .slice(0, 3)
+            .map((c) => (
+              <form action={activateCampaign} key={c.id}>
+                <input type="hidden" name="organization_id" value={orgId} />
+                <input type="hidden" name="campaign_id" value={c.id} />
+                <button className="quickRow" type="submit">
+                  <i>◎</i>
+                  <span>
+                    <b>Activate {c.name}</b>
+                    <small>
+                      {c.status} · bid {money(c.base_bid_cents)}
+                    </small>
+                  </span>
+                  <em>→</em>
+                </button>
+              </form>
+            ))}
         </div>
-      </section>
-    </main>
+      }
+    />
   );
 }

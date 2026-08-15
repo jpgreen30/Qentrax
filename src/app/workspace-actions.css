@@ -1,0 +1,36 @@
+/* Forms embedded in design-system dashboard quick panel */
+.workspace-actions {
+  display: grid;
+  gap: 14px;
+  padding: 0 4px 12px;
+}
+.workspace-actions form {
+  display: grid;
+  gap: 10px;
+}
+.workspace-actions label {
+  display: grid;
+  gap: 6px;
+  font: 9px var(--mono);
+  letter-spacing: 0.08em;
+  color: #748589;
+  text-transform: uppercase;
+}
+.workspace-actions input {
+  background: #061013;
+  border: 1px solid #34464b;
+  color: #edf3ef;
+  padding: 12px 14px;
+  font: 13px var(--sans);
+}
+.workspace-actions .notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #365057;
+  background: #081519;
+  color: var(--acid);
+  font: 11px/1.5 var(--mono);
+}
+.workspace-actions .quickRow {
+  width: 100%;
+}
