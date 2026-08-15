@@ -35,35 +35,41 @@ export default async function Workspace({
   const { data: memberships } = await membershipsQuery;
 
   return (
-    <main>
-      <nav>
-        <Link className="brand" href="/">
-          QENTRAX
+    <main className="wsPick">
+      <header className="wsPickHead">
+        <Link className="dashBrand" href="/">
+          <i>Q</i>
+          <span>
+            QENTRAX<small>WORKSPACES</small>
+          </span>
         </Link>
-        <span className="pill">Authenticated</span>
-        {isAdmin ? <Link href="/workspace/admin">Admin</Link> : null}
-      </nav>
-      <section className="workspace">
+        <div className="wsPickMeta">
+          <span className="pill">{String(data.claims.email ?? "")}</span>
+          {isAdmin ? (
+            <Link className="dashGhost" href="/workspace/admin">
+              Admin queue
+            </Link>
+          ) : null}
+          <Link className="dashGhost" href="/onboarding">
+            + New org
+          </Link>
+        </div>
+      </header>
+
+      <section className="wsPickBody">
         <p className="eyebrow">ORGANIZATION CONTEXT</p>
         <h1>Choose your workspace</h1>
         <p className="lede">
-          Signed in as {String(data.claims.email ?? "")}. Click an organization below to open its
-          full portal dashboard.
+          Open an advertiser or publisher portal. Each org has its own campaigns, sources, ledger,
+          and reports.
         </p>
         {params.org && (
-          <p className="notice" role="status">
-            Organization created. Open it below, or approve it in Admin first if needed.
+          <p className="dashNotice" role="status">
+            Organization created. Open it below, or approve it in Admin if needed.
           </p>
         )}
 
-        <p className="lede" style={{ marginTop: 8 }}>
-          Design previews (no login required):{" "}
-          <Link href="/advertiser/dashboard-preview">Advertiser dashboard</Link>
-          {" · "}
-          <Link href="/publisher/dashboard-preview">Publisher dashboard</Link>
-        </p>
-
-        <div className="tenant-list">
+        <div className="wsPickGrid">
           {memberships?.map((m) => {
             const org = m.organization as unknown as {
               legal_name: string;
@@ -71,7 +77,7 @@ export default async function Workspace({
               status: string;
               onboarding_status: string;
             };
-            const role = m.role as unknown as { name: string; code: string };
+            const role = m.role as unknown as { name: string };
             const href =
               org?.type === "advertiser"
                 ? `/workspace/advertiser?org=${m.organization_id}`
@@ -80,38 +86,32 @@ export default async function Workspace({
                   : org?.type === "platform"
                     ? `/workspace/admin`
                     : `/workspace`;
-            const cta =
-              org?.type === "advertiser"
-                ? "Open advertiser dashboard →"
-                : org?.type === "publisher"
-                  ? "Open publisher dashboard →"
-                  : org?.type === "platform"
-                    ? "Open admin queue →"
-                    : "Open →";
             return (
-              <Link key={m.organization_id} href={href} className="tenant-card">
-                <span>
-                  <strong>{org?.legal_name}</strong>
-                  <small>
-                    {role?.name} · {org?.type} · {org?.onboarding_status}
-                  </small>
-                </span>
-                <em>{cta}</em>
+              <Link key={m.organization_id} href={href} className="wsPickCard">
+                <span className="wsPickType">{org?.type}</span>
+                <strong>{org?.legal_name}</strong>
+                <small>
+                  {role?.name} · {org?.onboarding_status}
+                </small>
+                <em>Open portal →</em>
               </Link>
             );
           })}
         </div>
+
         {!memberships?.length && (
-          <p className="notice">
-            Your identity is verified.{" "}
+          <p className="dashNotice">
+            No organizations yet.{" "}
             <Link href="/onboarding">Create an advertiser or publisher organization</Link>.
           </p>
         )}
-        {!!memberships?.length && (
-          <p className="lede">
-            <Link href="/onboarding">Register another organization</Link>
-          </p>
-        )}
+
+        <p className="wsPickFoot">
+          Design previews:{" "}
+          <Link href="/advertiser/dashboard-preview">Advertiser</Link>
+          {" · "}
+          <Link href="/publisher/dashboard-preview">Publisher</Link>
+        </p>
       </section>
     </main>
   );

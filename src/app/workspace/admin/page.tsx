@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import WorkspaceShell from "@/components/WorkspaceShell";
 import { createClient } from "@/lib/supabase/server";
 import { approveOrganization, rejectOrganization } from "./actions";
 
@@ -11,10 +12,10 @@ export default async function AdminWorkspace() {
   const { data: isAdmin } = await supabase.rpc("is_platform_admin");
   if (!isAdmin) {
     return (
-      <main>
-        <section className="workspace narrow">
+      <main className="dash admin">
+        <section className="dashMain">
           <h1>Admin</h1>
-          <p className="notice">Platform admin role required.</p>
+          <p className="dashNotice">Platform admin role required.</p>
           <Link href="/workspace">Back</Link>
         </section>
       </main>
@@ -35,67 +36,111 @@ export default async function AdminWorkspace() {
     .order("updated_at", { ascending: false })
     .limit(20);
 
+  const { data: txnCount } = await supabase
+    .from("transactions")
+    .select("id", { count: "exact", head: true });
+
   return (
-    <main>
-      <nav>
-        <Link className="brand" href="/">
-          QENTRAX
-        </Link>
-        <Link href="/workspace">Workspaces</Link>
-        <span className="pill">Admin</span>
-      </nav>
-      <section className="workspace">
-        <p className="eyebrow">PLATFORM OPERATIONS</p>
-        <h1>Approval queue</h1>
-        <p className="lede">
-          Approve advertiser and publisher organizations before campaign activation
-          or live source traffic.
-        </p>
+    <WorkspaceShell
+      role="admin"
+      orgName="Qentrax Platform"
+      orgStatus="admin"
+      initials="QX"
+      active="overview"
+      eyebrow="PLATFORM OPERATIONS"
+      title="Approval queue"
+      subtitle="Approve advertisers and publishers before live demand."
+    >
+      <div className="dashStats">
+        <article>
+          <header>
+            <span>PENDING</span>
+            <i>◎</i>
+          </header>
+          <strong>{(queue ?? []).length}</strong>
+          <small>AWAITING REVIEW</small>
+        </article>
+        <article>
+          <header>
+            <span>ORGS</span>
+            <i>⌂</i>
+          </header>
+          <strong>{(recent ?? []).length}</strong>
+          <small>RECENT</small>
+        </article>
+        <article>
+          <header>
+            <span>TRANSACTIONS</span>
+            <i>$</i>
+          </header>
+          <strong>{txnCount ?? "—"}</strong>
+          <small>NETWORK</small>
+        </article>
+        <article>
+          <header>
+            <span>STATUS</span>
+            <i>⌁</i>
+          </header>
+          <strong>LIVE</strong>
+          <small>TEST MODE</small>
+        </article>
+      </div>
 
-        <h2>Pending</h2>
-        <div className="tenant-list">
-          {(queue ?? []).map((org) => (
-            <div key={org.id} className="tenant-card">
-              <span>
-                <strong>{org.legal_name}</strong>
-                <small>
-                  {org.type} · {org.onboarding_status}
-                  {org.website ? ` · ${org.website}` : ""}
-                </small>
-              </span>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <form action={approveOrganization}>
-                  <input type="hidden" name="organization_id" value={org.id} />
-                  <button className="button" type="submit">
-                    Approve
-                  </button>
-                </form>
-                <form action={rejectOrganization}>
-                  <input type="hidden" name="organization_id" value={org.id} />
-                  <button className="button" type="submit">
-                    Reject
-                  </button>
-                </form>
-              </div>
+      <div className="dashPanel">
+        <header>
+          <span>PENDING REVIEW</span>
+          <h2>Organizations awaiting approval</h2>
+        </header>
+        {(queue ?? []).map((org) => (
+          <div className="adminRow" key={org.id}>
+            <div>
+              <strong>{org.legal_name}</strong>
+              <small>
+                {org.type} · {org.onboarding_status}
+                {org.website ? ` · ${org.website}` : ""}
+              </small>
             </div>
-          ))}
-          {!queue?.length && <p className="notice">No organizations awaiting review.</p>}
-        </div>
+            <div className="adminActions">
+              <form action={approveOrganization}>
+                <input type="hidden" name="organization_id" value={org.id} />
+                <button className="dashAction" type="submit">
+                  Approve
+                </button>
+              </form>
+              <form action={rejectOrganization}>
+                <input type="hidden" name="organization_id" value={org.id} />
+                <button className="dashGhost" type="submit">
+                  Reject
+                </button>
+              </form>
+            </div>
+          </div>
+        ))}
+        {!queue?.length && <p className="dashNotice">No organizations awaiting review.</p>}
+      </div>
 
-        <h2>Recent</h2>
-        <div className="tenant-list">
-          {(recent ?? []).map((org) => (
-            <div key={org.id} className="tenant-card">
-              <span>
-                <strong>{org.legal_name}</strong>
-                <small>
-                  {org.type} · {org.onboarding_status} · {org.status}
-                </small>
-              </span>
-            </div>
-          ))}
+      <div className="dashPanel">
+        <header>
+          <span>RECENT</span>
+          <h2>Latest organizations</h2>
+        </header>
+        <div className="tableHead sources">
+          <span>NAME</span>
+          <span>TYPE</span>
+          <span>ONBOARDING</span>
+          <span>STATUS</span>
+          <span>—</span>
         </div>
-      </section>
-    </main>
+        {(recent ?? []).map((org) => (
+          <div className="tableRow sources" key={org.id}>
+            <span>{org.legal_name}</span>
+            <span>{org.type}</span>
+            <span className="status">{org.onboarding_status}</span>
+            <span>{org.status}</span>
+            <span>—</span>
+          </div>
+        ))}
+      </div>
+    </WorkspaceShell>
   );
 }
