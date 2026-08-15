@@ -1,0 +1,11 @@
+/* Marketing workspace SVG chart styles from original */
+.adfChart{background-image:linear-gradient(#ffffff08 1px,transparent 1px);background-size:100% 25%;border:1px solid #2e4248;height:260px;margin-top:18px;padding:18px}
+.adfChart header{font:7px var(--mono);color:#6f8084;justify-content:space-between;display:flex;margin-bottom:8px}
+.adfChart header small{color:#5a6c70}
+.adfChart svg{width:100%;height:200px}
+.adfChart path{fill:none;stroke:var(--acid);stroke-width:2px}
+.adfChart path.fill{fill:#caff4b12;stroke:none}
+.pubPage .adfChart path{stroke:var(--cyan)}
+.pubPage .adfChart path.fill{fill:#54eaff12;stroke:none}
+.adfMain>section span small{display:block;font:7px var(--mono);color:#6f8084;margin-bottom:6px}
+.adfMain>section span b{display:block;font-size:22px}
