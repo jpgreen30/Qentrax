@@ -15,28 +15,21 @@ export default async function AdvertiserBilling({
   });
   const bal = Number(balance ?? 0);
 
-  const { data: journals } = await supabase
-    .from("journals")
-    .select("id, journal_type, description, created_at, reference_id")
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  // Filter journals tied to this org via ledger if possible — show recent for now
   const { data: accounts } = await supabase
     .from("financial_accounts")
     .select("id, type")
     .eq("organization_id", org.id);
 
-  const acctIds = new Set((accounts ?? []).map((a) => a.id));
-  const { data: entries } = await supabase
-    .from("ledger_entries")
-    .select("id, journal_id, account_id, direction, amount_cents, created_at")
-    .in(
-      "account_id",
-      acctIds.size ? Array.from(acctIds) : ["00000000-0000-0000-0000-000000000000"],
-    )
-    .order("created_at", { ascending: false })
-    .limit(40);
+  const acctIds = (accounts ?? []).map((a) => a.id);
+  const { data: entries } =
+    acctIds.length > 0
+      ? await supabase
+          .from("ledger_entries")
+          .select("id, journal_id, account_id, direction, amount_cents, occurred_at")
+          .in("account_id", acctIds)
+          .order("occurred_at", { ascending: false })
+          .limit(40)
+      : { data: [] as { id: string; direction: string; amount_cents: number; occurred_at: string }[] };
 
   return (
     <WorkspaceShell
@@ -79,11 +72,11 @@ export default async function AdvertiserBilling({
         </article>
         <article>
           <header>
-            <span>JOURNALS</span>
+            <span>MODE</span>
             <i>▦</i>
           </header>
-          <strong>{(journals ?? []).length}</strong>
-          <small>PLATFORM</small>
+          <strong>TEST</strong>
+          <small>STRIPE LATER</small>
         </article>
       </div>
 
@@ -102,7 +95,7 @@ export default async function AdvertiserBilling({
             <div className="tableRow bill" key={e.id}>
               <span className="status">{e.direction?.toUpperCase()}</span>
               <span>{money(e.amount_cents)}</span>
-              <span>{new Date(e.created_at).toLocaleString()}</span>
+              <span>{new Date(e.occurred_at).toLocaleString()}</span>
             </div>
           ))}
           {!entries?.length && (
