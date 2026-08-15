@@ -8,6 +8,7 @@ import {
   validateAgainstSchemas,
 } from "@/lib/validate-vertical-fields";
 import { PRIMARY_VERTICAL_CODES } from "@/lib/verticals";
+import { deliverToEndpoint } from "@/lib/delivery/http-delivery";
 
 /**
  * Opportunity intake → schema validation → ready → marketplace auction (unless skip_auction).
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
         "VALIDATION_ERROR",
         `Unknown product '${body.product}' for vertical '${body.vertical}'.`,
         id,
-        400,
+      400,
       );
     }
     productId = p.id;
@@ -220,6 +221,38 @@ export async function POST(request: Request) {
     auction = auctionError
       ? { status: "error", message: auctionError.message }
       : auctionResult;
+
+    const ar = auction as { status?: string; campaign_id?: string; transaction_id?: string } | null;
+    if (ar && typeof ar === "object" && ar.campaign_id && ar.status === "billable") {
+      const { data: ep } = await supabase
+        .from("campaign_endpoints")
+        .select("endpoint_url, timeout_ms")
+        .eq("campaign_id", ar.campaign_id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const delivery = await deliverToEndpoint({
+        endpointUrl: ep?.endpoint_url,
+        timeoutMs: ep?.timeout_ms ?? 8000,
+        simulateOnMissing: true,
+        payload: {
+          transaction_id: String(ar.transaction_id ?? ""),
+          public_transaction_id: opportunity.public_transaction_id,
+          opportunity_id: opportunity.id,
+          campaign_id: ar.campaign_id,
+          vertical: body.vertical,
+          state:
+            typeof validated.pingAttributes.state === "string"
+              ? String(validated.pingAttributes.state)
+              : null,
+          attributes: validated.pingAttributes,
+          delivered_at: new Date().toISOString(),
+        },
+      });
+      (auction as Record<string, unknown>).delivery = delivery;
+    }
   }
 
   return apiOk(
