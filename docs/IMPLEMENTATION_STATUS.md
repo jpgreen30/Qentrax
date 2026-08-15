@@ -12,6 +12,7 @@ The supplied workspace initially contained only `Qentrax_Codex_Master_Build_Spec
 |---|---|---|
 | 0 Foundation | In progress | App/API shell, live Qentrax Supabase migration/RLS, SSR magic-link authentication, request IDs, audit utility, reason codes, tests and CI implemented. Live email authentication and tenant fixture acceptance test remain. |
 | Public design revision | Complete | Approved dark Qentrax visual system implemented with Qentrax Intelligence, representative life-insurance and solar deployments, responsive QA evidence and passing production build. |
+| Public audience routes | Complete | Approved advertiser, publisher and Field Notes routes implemented with responsive visual QA, accessible interactions and working navigation. Dashboard previews and individual article routes remain future slices. |
 | 1 Accounts/onboarding | Not started | Track in `docs/TASKS.md` |
 | 2 Campaigns/funding | Not started | Track in `docs/TASKS.md` |
 | 3 Sources/intake | Not started | Track in `docs/TASKS.md` |

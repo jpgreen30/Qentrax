@@ -1,8 +1,8 @@
 # Qentrax marketing design QA
 
-- Approved reference: `https://qentrax.jpgreen30.chatgpt.site/`
+- Approved references: `https://qentrax.jpgreen30.chatgpt.site/`, `/advertiser`, `/publisher`, `/blog`
 - Tested implementation: `http://localhost:3000/`
-- Route states tested: `/`, `/#insights`, `/#deployments`, `/sign-in`, `/workspace` (unauthenticated redirect)
+- Route states tested: `/`, `/advertiser`, `/publisher`, `/blog`, `/#insights`, `/#deployments`, `/sign-in`, `/workspace` (unauthenticated redirect)
 - Viewports: desktop 1440 x 1000, tablet 768 x 1024, mobile 390 x 844; device scale factor 1
 
 ## Mismatches and fixes
@@ -14,13 +14,18 @@
 | P1 | Representative Deployments was absent. | Added life-insurance and home-services solar scenarios with challenge, configuration and measurement categories. Both are labeled representative/illustrative and make no client or performance claim. | Fixed |
 | P1 | Display headings inherited browser bold weight. | Reset heading weight to align with the reference display treatment. | Fixed |
 | P2 | Source navigation expected lower-page intelligence content. | Added an Intelligence anchor and verified the target at all widths. | Fixed |
-| P3 | The reference exposes dedicated advertiser, publisher and blog destinations that are not yet product-complete. | Kept advertiser/publisher navigation scoped to the working network section and mapped Intelligence to the new section instead of introducing broken or placeholder routes. | Intentional, non-blocking |
+| P1 | The advertiser, publisher and blog reference routes were missing. | Added all three routes with approved content, responsive layouts, working navigation, sign-in-backed CTAs, marketplace/source controls, quality evidence, workflows, reporting, onboarding and field-note content. | Fixed |
+| P2 | Advertiser and publisher mobile navigation omitted the reference Register control. | Restored a compact mobile Register control while keeping the long navigation menu collapsed. | Fixed in pass 2 |
+| P2 | The blog mobile category rail showed a native scrollbar and the headline wrapped too early. | Hid the native scrollbar without disabling scrolling and adjusted the mobile display scale to restore the reference composition. | Fixed in pass 2 |
+| P3 | The supplied references link to separate dashboard previews and full article routes that were not provided as approved visual targets. | Dashboard CTAs safely enter the authenticated workspace; field-note links open a research contact action instead of claiming unbuilt articles exist. | Intentional, non-blocking |
 
 ## Visual evidence
 
 - Reference baseline: `docs/design-reference/source-desktop-full.png`, `docs/design-reference/source-mobile-full.png`
 - Intelligence: `docs/design-reference/implementation-desktop-intelligence.png`, `implementation-tablet-intelligence.png`, `implementation-mobile-intelligence.png`
 - Deployments: `docs/design-reference/implementation-desktop-deployments.png`, `implementation-tablet-deployments.png`, `implementation-mobile-deployments.png`
+- Route references: `source-advertiser-desktop.png`, `source-advertiser-mobile.png`, `source-publisher-desktop.png`, `source-publisher-mobile.png`, `source-blog-desktop.png`, `source-blog-mobile.png`
+- Focused route comparisons: `source-{route}-{desktop|mobile}-top.png` and `implementation-{route}-{desktop|mobile}-top.png`; post-fix mobile evidence in `implementation-advertiser-mobile-fixed.png` and `implementation-blog-mobile-fixed.png`
 - Evidence images are local QA artifacts and intentionally excluded from Git to keep the repository lightweight.
 
 ## Responsive and interaction verification
@@ -33,14 +38,17 @@
 - `/sign-in` rendered its email control; unauthenticated `/workspace` redirected to `/sign-in`.
 - Browser logs contained development HMR messages only; no warning or error entries were observed.
 - Reduced-motion handling remains enabled through `prefers-reduced-motion`.
+- `/advertiser`, `/publisher` and `/blog` were checked at 1440 x 1000, 768 x 1024 and 390 x 844 with no horizontal overflow.
+- Advertiser FAQ disclosure and blog category filtering were exercised in the rendered browser; both state changes passed and exposed the expected accessible state.
+- Pass 2 focused comparisons confirmed the mobile Register control, clean horizontally scrollable category rail and corrected blog headline composition.
 
 ## Remaining differences
 
-- Dedicated advertiser, publisher and blog product routes remain deferred to their authenticated vertical slices. The public page uses working in-page destinations and does not represent placeholders as complete features.
 - The new intelligence content uses the approved reference design language while expanding beyond the shorter reference editorial cards to satisfy the canonical product requirements.
+- Dashboard preview and individual Field Notes article designs were not among the three supplied visual targets and remain future routes; current CTAs do not represent them as completed production screens.
 
 ## Final result
 
 final result: passed
 
-No P0, P1 or P2 visual blockers remain. The two required sections are present, responsive and materially consistent with the approved reference.
+No P0, P1 or P2 visual blockers remain. The landing page and the advertiser, publisher and blog routes are responsive and materially consistent with their approved references.
