@@ -12,12 +12,14 @@ function money(cents: number | null | undefined) {
 }
 
 function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("") || "AD";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "AD"
+  );
 }
 
 export default async function AdvertiserWorkspace({
@@ -39,13 +41,13 @@ export default async function AdvertiserWorkspace({
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/sign-in");
 
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organizations")
     .select("id, legal_name, onboarding_status, type")
     .eq("id", orgId)
     .maybeSingle();
 
-  if (!org || org.type !== "advertiser") redirect("/workspace");
+  if (orgError || !org || org.type !== "advertiser") redirect("/workspace");
 
   const { data: campaigns } = await supabase
     .from("campaigns")
@@ -59,29 +61,31 @@ export default async function AdvertiserWorkspace({
 
   const { data: txns } = await supabase
     .from("transactions")
-    .select("id, status, advertiser_price_cents, created_at, opportunity:opportunities(public_transaction_id)")
+    .select("id, status, advertiser_price_cents, created_at, opportunity_id")
     .eq("advertiser_org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(8);
+
+  const oppIds = (txns ?? []).map((t) => t.opportunity_id).filter(Boolean) as string[];
+  const { data: opps } =
+    oppIds.length > 0
+      ? await supabase.from("opportunities").select("id, public_transaction_id").in("id", oppIds)
+      : { data: [] as { id: string; public_transaction_id: string }[] };
+  const oppMap = new Map((opps ?? []).map((o) => [o.id, o.public_transaction_id]));
 
   const bal = Number(balance ?? 0);
   const spend = (txns ?? []).reduce((s, t) => s + (t.advertiser_price_cents ?? 0), 0);
   const accepted = (txns ?? []).filter((t) => t.status === "billable").length;
   const activeCampaigns = (campaigns ?? []).filter((c) => c.status === "active").length;
 
-  const rows =
-    (txns ?? []).map((t) => {
-      const opp = t.opportunity as unknown as { public_transaction_id?: string } | null;
-      return {
-        id: opp?.public_transaction_id ?? t.id.slice(0, 8),
-        vertical: "—",
-        score: "—",
-        status: (t.status ?? "").toUpperCase(),
-        value: money(t.advertiser_price_cents),
-      };
-    }) ?? [];
+  const rows = (txns ?? []).map((t) => ({
+    id: (t.opportunity_id && oppMap.get(t.opportunity_id)) || t.id.slice(0, 8),
+    vertical: "—",
+    score: "—",
+    status: (t.status ?? "").toUpperCase(),
+    value: money(t.advertiser_price_cents),
+  }));
 
-  // Fallback: show campaigns in table if no txns yet
   const campaignRows =
     rows.length > 0
       ? rows
@@ -116,9 +120,24 @@ export default async function AdvertiserWorkspace({
         `${activeCampaigns} active campaign${activeCampaigns === 1 ? "" : "s"} · ${accepted} billable in view.`
       }
       stats={[
-        { label: "AVAILABLE BALANCE", icon: "◫", value: money(bal), meta: bal > 0 ? "FUNDED" : "UNFUNDED" },
-        { label: "SPEND (VIEW)", icon: "↗", value: money(spend), meta: `${(txns ?? []).length} txns` },
-        { label: "BILLABLE LEADS", icon: "◎", value: String(accepted), meta: org.onboarding_status },
+        {
+          label: "AVAILABLE BALANCE",
+          icon: "◫",
+          value: money(bal),
+          meta: bal > 0 ? "FUNDED" : "UNFUNDED",
+        },
+        {
+          label: "SPEND (VIEW)",
+          icon: "↗",
+          value: money(spend),
+          meta: `${(txns ?? []).length} txns`,
+        },
+        {
+          label: "BILLABLE LEADS",
+          icon: "◎",
+          value: String(accepted),
+          meta: org.onboarding_status,
+        },
         {
           label: "CAMPAIGNS",
           icon: "⌁",
@@ -131,11 +150,9 @@ export default async function AdvertiserWorkspace({
       listTitle="LIVE ACTIVITY"
       listSubtitle={rows.length ? "Recent billable transactions" : "Campaigns"}
       primaryAction={
-        <>
-          <Link className="dashAction" href={`/workspace/advertiser?org=${orgId}#create`}>
-            ＋ NEW CAMPAIGN
-          </Link>
-        </>
+        <Link className="dashAction" href={`/workspace/advertiser?org=${orgId}#create`}>
+          ＋ NEW CAMPAIGN
+        </Link>
       }
       secondaryPanel={
         <div className="workspace-actions">
@@ -166,7 +183,11 @@ export default async function AdvertiserWorkspace({
               Daily budget (cents)
               <input name="daily_budget_cents" type="number" min={0} defaultValue={50000} />
             </label>
-            <button className="dashAction" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+            <button
+              className="dashAction"
+              type="submit"
+              style={{ width: "100%", justifyContent: "center" }}
+            >
               Create draft campaign
             </button>
           </form>

@@ -47,15 +47,22 @@ export default async function Workspace({
         <p className="eyebrow">ORGANIZATION CONTEXT</p>
         <h1>Choose your workspace</h1>
         <p className="lede">
-          Signed in as {String(data.claims.email ?? "")}. Demo path: create org →
-          admin approve → fund advertiser → activate campaign → publisher test lead.
+          Signed in as {String(data.claims.email ?? "")}. Click an organization below to open its
+          full portal dashboard.
         </p>
         {params.org && (
           <p className="notice" role="status">
-            Organization created. Ask a platform admin to approve it, then fund and
-            activate campaigns.
+            Organization created. Open it below, or approve it in Admin first if needed.
           </p>
         )}
+
+        <p className="lede" style={{ marginTop: 8 }}>
+          Design previews (no login required):{" "}
+          <Link href="/advertiser/dashboard-preview">Advertiser dashboard</Link>
+          {" · "}
+          <Link href="/publisher/dashboard-preview">Publisher dashboard</Link>
+        </p>
+
         <div className="tenant-list">
           {memberships?.map((m) => {
             const org = m.organization as unknown as {
@@ -73,6 +80,14 @@ export default async function Workspace({
                   : org?.type === "platform"
                     ? `/workspace/admin`
                     : `/workspace`;
+            const cta =
+              org?.type === "advertiser"
+                ? "Open advertiser dashboard →"
+                : org?.type === "publisher"
+                  ? "Open publisher dashboard →"
+                  : org?.type === "platform"
+                    ? "Open admin queue →"
+                    : "Open →";
             return (
               <Link key={m.organization_id} href={href} className="tenant-card">
                 <span>
@@ -81,7 +96,7 @@ export default async function Workspace({
                     {role?.name} · {org?.type} · {org?.onboarding_status}
                   </small>
                 </span>
-                <em>{org?.status}</em>
+                <em>{cta}</em>
               </Link>
             );
           })}
@@ -89,8 +104,7 @@ export default async function Workspace({
         {!memberships?.length && (
           <p className="notice">
             Your identity is verified.{" "}
-            <Link href="/onboarding">Create an advertiser or publisher organization</Link>
-            .
+            <Link href="/onboarding">Create an advertiser or publisher organization</Link>.
           </p>
         )}
         {!!memberships?.length && (

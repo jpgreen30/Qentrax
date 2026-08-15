@@ -12,12 +12,14 @@ function money(cents: number | null | undefined) {
 }
 
 function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("") || "PB";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "PB"
+  );
 }
 
 export default async function PublisherWorkspace({
@@ -33,13 +35,13 @@ export default async function PublisherWorkspace({
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/sign-in");
 
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organizations")
     .select("id, legal_name, onboarding_status, type")
     .eq("id", orgId)
     .maybeSingle();
 
-  if (!org || org.type !== "publisher") redirect("/workspace");
+  if (orgError || !org || org.type !== "publisher") redirect("/workspace");
 
   const { data: sources } = await supabase
     .from("publisher_sources")
@@ -49,27 +51,28 @@ export default async function PublisherWorkspace({
 
   const { data: txns } = await supabase
     .from("transactions")
-    .select(
-      "id, status, advertiser_price_cents, publisher_amount_cents, created_at, opportunity:opportunities(public_transaction_id)",
-    )
+    .select("id, status, advertiser_price_cents, publisher_amount_cents, created_at, opportunity_id")
     .eq("publisher_org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(10);
 
+  const oppIds = (txns ?? []).map((t) => t.opportunity_id).filter(Boolean) as string[];
+  const { data: opps } =
+    oppIds.length > 0
+      ? await supabase.from("opportunities").select("id, public_transaction_id").in("id", oppIds)
+      : { data: [] as { id: string; public_transaction_id: string }[] };
+  const oppMap = new Map((opps ?? []).map((o) => [o.id, o.public_transaction_id]));
+
   const earnings = (txns ?? []).reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
   const billable = (txns ?? []).filter((t) => t.status === "billable").length;
 
-  const rows =
-    (txns ?? []).map((t) => {
-      const opp = t.opportunity as unknown as { public_transaction_id?: string } | null;
-      return {
-        id: opp?.public_transaction_id ?? t.id.slice(0, 8),
-        vertical: "—",
-        score: "—",
-        status: (t.status ?? "").toUpperCase(),
-        value: money(t.publisher_amount_cents),
-      };
-    }) ?? [];
+  const rows = (txns ?? []).map((t) => ({
+    id: (t.opportunity_id && oppMap.get(t.opportunity_id)) || t.id.slice(0, 8),
+    vertical: "—",
+    score: "—",
+    status: (t.status ?? "").toUpperCase(),
+    value: money(t.publisher_amount_cents),
+  }));
 
   const sourceRows =
     rows.length > 0
@@ -103,9 +106,7 @@ export default async function PublisherWorkspace({
       stats={[
         { label: "EST. EARNINGS", icon: "◫", value: money(earnings), meta: "THIS VIEW" },
         { label: "PENDING PAYOUT", icon: "↗", value: money(earnings), meta: "NET 30 (stub)" },
-        {
-          label: "BILLABLE", icon: "◎", value: String(billable), meta: org.onboarding_status,
-        },
+        { label: "BILLABLE", icon: "◎", value: String(billable), meta: org.onboarding_status },
         {
           label: "SOURCES",
           icon: "⌁",
@@ -139,7 +140,11 @@ export default async function PublisherWorkspace({
               Domain
               <input name="domain" placeholder="example.com" />
             </label>
-            <button className="dashAction" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+            <button
+              className="dashAction"
+              type="submit"
+              style={{ width: "100%", justifyContent: "center" }}
+            >
               Create draft source
             </button>
           </form>
