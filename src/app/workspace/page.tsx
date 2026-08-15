@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ensureUser } from "@/lib/ensure-user";
 
-export default async function Workspace() {
+export default async function Workspace({
+  searchParams,
+}: {
+  searchParams: Promise<{ org?: string }>;
+}) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) redirect("/sign-in");
@@ -14,10 +18,12 @@ export default async function Workspace() {
     user_metadata?: { display_name?: string };
   });
 
+  const params = await searchParams;
+
   const { data: memberships } = await supabase
     .from("organization_members")
     .select(
-      "organization_id, role:roles(name), organization:organizations(legal_name, type, status)",
+      "organization_id, role:roles(name, code), organization:organizations(legal_name, type, status, onboarding_status)",
     );
 
   return (
@@ -35,30 +41,50 @@ export default async function Workspace() {
           Signed in as {String(data.claims.email ?? "")}. Every workspace query
           is constrained by organization membership and database RLS.
         </p>
+        {params.org && (
+          <p className="notice" role="status">
+            Organization created. Complete KYB review in a later step; you can
+            already create draft campaigns or sources.
+          </p>
+        )}
         <div className="tenant-list">
-          {memberships?.map((m) => (
-            <button key={m.organization_id} type="button">
-              <span>
-                <strong>
-                  {
-                    (m.organization as unknown as { legal_name: string })
-                      ?.legal_name
-                  }
-                </strong>
-                <small>
-                  {(m.role as unknown as { name: string })?.name}
-                </small>
-              </span>
-              <em>
-                {(m.organization as unknown as { status: string })?.status}
-              </em>
-            </button>
-          ))}
+          {memberships?.map((m) => {
+            const org = m.organization as unknown as {
+              legal_name: string;
+              type: string;
+              status: string;
+              onboarding_status: string;
+            };
+            const role = m.role as unknown as { name: string; code: string };
+            const href =
+              org?.type === "advertiser"
+                ? `/workspace/advertiser?org=${m.organization_id}`
+                : org?.type === "publisher"
+                  ? `/workspace/publisher?org=${m.organization_id}`
+                  : `/workspace`;
+            return (
+              <Link key={m.organization_id} href={href} className="tenant-card">
+                <span>
+                  <strong>{org?.legal_name}</strong>
+                  <small>
+                    {role?.name} · {org?.type} · {org?.onboarding_status}
+                  </small>
+                </span>
+                <em>{org?.status}</em>
+              </Link>
+            );
+          })}
         </div>
         {!memberships?.length && (
           <p className="notice">
-            Your identity is verified. Organization onboarding begins in Phase
-            1.
+            Your identity is verified.{" "}
+            <Link href="/onboarding">Create an advertiser or publisher organization</Link>{" "}
+            to continue.
+          </p>
+        )}
+        {!!memberships?.length && (
+          <p className="lede">
+            <Link href="/onboarding">Register another organization</Link>
           </p>
         )}
       </section>

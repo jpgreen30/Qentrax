@@ -1,11 +1,16 @@
 # Delivery tasks
 
-- [x] Phase 0 code: repo structure, CI, lint/typecheck/test/build, request IDs, API conventions, reason codes, audit utility, org context helper, migrations, RLS, user bootstrap, magic-link auth shell, workspace page
-- [ ] Phase 0 owner verification: apply bootstrap migration + expanded seed, configure Auth redirects/templates, live magic-link → `/workspace`, health check on Vercel (`docs/PHASE0_ACCEPTANCE.md`)
-- [ ] Phase 1: identity schema completion, RBAC permissions matrix, onboarding state machines, agreements, KYB/KYC adapters, admin approval queues
-- [ ] Phase 2: versioned campaigns, eligibility, endpoint tests, Stripe funding, balanced advertiser ledger
-- [ ] Phase 3: approved publisher sources, consent templates, scoped credentials, REST/ping-post controlled tests
-- [ ] Phase 4: Q-Shield evidence pipeline, duplicate/velocity rules, atomic auction reservations, delivery fallback, transaction ledger
-- [ ] Phase 5: signed idempotent outcomes, attribution queue, CRM/CSV/SFTP adapters, real-time metrics
-- [ ] Phase 6: returns/disputes, adjustments, Net 30 eligibility, configurable $100 threshold, approved payouts
-- [ ] Phase 7: rules console, quality queues, notifications, load/security/recovery tests and launch review
+- [x] Phase 0 foundation + live magic-link
+- [x] Phase 1 schema: profiles, agreements, permissions, onboarding statuses
+- [x] Phase 1 UI: onboarding + org-scoped workspace entry
+- [ ] Phase 1: admin approval queue UI + KYB adapter + agreement acceptance UI
+- [x] Phase 2 schema: campaigns, versions, endpoints, ledger tables
+- [x] Phase 2 UI/API: draft campaigns
+- [ ] Phase 2: Stripe funding intents + balanced funding journal
+- [x] Phase 3 schema: sources, consent templates, integrations
+- [x] Phase 3 UI/API: draft sources + opportunity intake stub
+- [x] Phase 4 schema: opportunity→auction→delivery→transaction chain
+- [ ] Phase 4: Q-Shield providers, atomic budget reservation, delivery engine
+- [ ] Phase 5: conversion webhook API + funnel metrics
+- [ ] Phase 6: returns, Net 30 payouts
+- [ ] Phase 7: hardening and launch review

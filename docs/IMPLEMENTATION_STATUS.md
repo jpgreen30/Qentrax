@@ -2,30 +2,39 @@
 
 Last updated: 2026-08-15
 
-## Repository audit
-
-Canonical specification is `Qentrax_Codex_Master_Build_Spec.md`. Design reference: https://qentrax.jpgreen30.chatgpt.site. Production marketing site: https://qentrax.vercel.app.
-
 ## Phase status
 
 | Phase | Status | Evidence / remaining gate |
 |---|---|---|
-| 0 Foundation | **Code complete — owner verification pending** | App/API shell, Supabase migrations + RLS, user bootstrap trigger, SSR magic-link auth, request IDs, audit utility, full reason-code + role seeds, foundation tests, CI. Live magic-link + bootstrap migration apply remain owner actions (`docs/PHASE0_ACCEPTANCE.md`). |
-| Public design revision | Complete | Approved dark Qentrax visual system, verticals, case studies, responsive QA. |
-| Public audience routes | Complete | Advertiser, publisher, blog routes; dashboard previews; footer parity. |
-| 1 Accounts/onboarding | Not started | Track in `docs/TASKS.md` |
-| 2 Campaigns/funding | Not started | Track in `docs/TASKS.md` |
-| 3 Sources/intake | Not started | Track in `docs/TASKS.md` |
-| 4 Marketplace/Q-Shield | Not started | Track in `docs/TASKS.md` |
-| 5 Attribution | Not started | Track in `docs/TASKS.md` |
-| 6 Returns/payouts | Not started | Track in `docs/TASKS.md` |
-| 7 Hardening | Not started | Track in `docs/TASKS.md` |
+| 0 Foundation | **Complete** | Auth shell, migrations, RLS, magic-link live verified (`jpgreen1@gmail.com` → `/workspace`). |
+| Public marketing site | Complete | Design parity on Vercel. |
+| 1 Accounts/onboarding | **In progress — core live** | Org create + membership + profiles + agreements seed + permission matrix + `/onboarding` + workspace routing. Admin approval queue UI and KYB provider adapters remain. |
+| 2 Campaigns/funding | **Scaffold live** | Campaigns, versions, endpoints, financial_accounts, journals/ledger tables + draft campaign UI/API. Stripe funding intents not wired. |
+| 3 Sources/intake | **Scaffold live** | publisher_sources, consent_templates, integrations + draft source UI/API + opportunity POST skeleton. |
+| 4 Marketplace/Q-Shield | **Schema + stub intake** | opportunities, validation_runs/results, auction_*, deliveries, transactions, conversion_events. Intake records validating→ready/rejected_quality; auction worker not live. |
+| 5 Attribution | Schema only | conversion_events table + unique external_event_id. API worker pending. |
+| 6 Returns/payouts | Not started | Payables batching pending. |
+| 7 Hardening | Not started | Load/security/runbooks pending. |
 
-Phase 0 is not formally closed until the owner verification steps in `docs/PHASE0_ACCEPTANCE.md` pass against the provisioned Supabase project and Vercel deployment.
+## Live database (Supabase `wmrfdzkcjtceuhloerte`)
 
-### Live infrastructure
+- Phase 0–4 migrations applied
+- 10 roles, 48 role_permissions, 20 reason codes, 4 agreements
+- 6 verticals, 19 products
+- RLS on tenant tables
 
-- Supabase project `Qentrax` (`wmrfdzkcjtceuhloerte`) active in `us-west-2`.
-- Foundation + FK index migrations applied; RLS enabled; security advisor clean at last check.
-- Seed: roles (§4.1) and reason codes (Appendix A families) expanded in repo; re-apply seed after bootstrap migration.
-- Vercel project linked to GitHub with public Supabase URL/publishable key.
+## App routes
+
+- `/sign-in`, `/auth/confirm`, `/workspace`
+- `/onboarding` — create advertiser/publisher org
+- `/workspace/advertiser?org=` — draft campaigns
+- `/workspace/publisher?org=` — draft sources
+- `POST /api/v1/organizations`, `campaigns`, `sources`, `opportunities`
+- `GET /api/v1/health`
+
+## Owner blockers for money movement
+
+- Stripe keys + webhook endpoint (Phase 2 funding)
+- Counsel-approved agreement PDFs (replace seed summaries)
+- KYB provider credentials
+- Queue/worker deployment before live auction latency path
