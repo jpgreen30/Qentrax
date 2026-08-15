@@ -10,7 +10,7 @@ The supplied workspace initially contained only `Qentrax_Codex_Master_Build_Spec
 
 | Phase | Status | Evidence / remaining gate |
 |---|---|---|
-| 0 Foundation | In progress | App/API shell, live Qentrax Supabase migration/RLS, request IDs, audit utility, reason codes, tests and CI implemented. Authenticated session flow and Vercel preview remain. |
+| 0 Foundation | In progress | App/API shell, live Qentrax Supabase migration/RLS, SSR magic-link authentication, request IDs, audit utility, reason codes, tests and CI implemented. Live email authentication and tenant fixture acceptance test remain. |
 | 1 Accounts/onboarding | Not started | Track in `docs/TASKS.md` |
 | 2 Campaigns/funding | Not started | Track in `docs/TASKS.md` |
 | 3 Sources/intake | Not started | Track in `docs/TASKS.md` |
@@ -27,3 +27,4 @@ Phase 0 is intentionally not marked complete until the canonical authenticated o
 - Foundation and foreign-key-index migrations applied successfully.
 - All seven public tables have RLS enabled; the security advisor reports no findings.
 - Seed verification: 3 roles and 6 stable reason codes.
+- Vercel project `jean-pierres-projects-856af23d/qentrax` is linked to GitHub with public Supabase URL/publishable-key configuration.
