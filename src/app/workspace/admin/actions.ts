@@ -2,6 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/lib/auth-context";
+import {
+  computeNextRunAt,
+  recordScheduleRun,
+  runScheduledPayout,
+  type PayoutCadence,
+} from "@/lib/payouts/schedule";
 import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 
@@ -149,10 +155,7 @@ export async function createPayoutBatch(formData: FormData) {
   const { auth, supabase, rid } = await requireAdminActor();
   const notes = String(formData.get("notes") ?? "").trim() || null;
 
-  // Transactions already in a payout item
-  const { data: existingItems } = await supabase
-    .from("payout_items")
-    .select("transaction_id");
+  const { data: existingItems } = await supabase.from("payout_items").select("transaction_id");
   const used = new Set((existingItems ?? []).map((i) => i.transaction_id));
 
   const { data: txns } = await supabase
@@ -193,7 +196,7 @@ export async function createPayoutBatch(formData: FormData) {
 
   if (batchErr || !batch) {
     redirect(
-      `/workspace/admin/finance?error=${encodeURIComponent(batchErr?.message ?? "Batch create failed — apply payout migration?")}`,
+      `/workspace/admin/finance?error=${encodeURIComponent(batchErr?.message ?? "Batch create failed")}`,
     );
   }
 
@@ -290,10 +293,7 @@ export async function releasePayoutBatch(formData: FormData) {
     })
     .eq("id", batchId);
 
-  await supabase
-    .from("payout_items")
-    .update({ status: "paid" })
-    .eq("batch_id", batchId);
+  await supabase.from("payout_items").update({ status: "paid" }).eq("batch_id", batchId);
 
   await supabase.from("audit_events").insert({
     actor_user_id: auth.userId,
@@ -330,7 +330,6 @@ export async function cancelPayoutBatch(formData: FormData) {
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("id", batchId);
 
-  // Free transaction_ids so they can be re-batched (delete items)
   await supabase.from("payout_items").delete().eq("batch_id", batchId);
 
   await supabase.from("audit_events").insert({
@@ -346,4 +345,93 @@ export async function cancelPayoutBatch(formData: FormData) {
   });
 
   redirect(`/workspace/admin/finance?ok=cancelled&batch=${batchId}`);
+}
+
+const CADENCES = new Set(["daily", "weekly", "biweekly", "monthly"]);
+
+export async function savePayoutSchedule(formData: FormData) {
+  const { auth, supabase, rid } = await requireAdminActor();
+
+  const enabled = formData.get("enabled") === "on" || formData.get("enabled") === "true";
+  const cadenceRaw = String(formData.get("cadence") ?? "weekly");
+  const cadence = (CADENCES.has(cadenceRaw) ? cadenceRaw : "weekly") as PayoutCadence;
+  const netDays = Math.min(365, Math.max(0, Number(formData.get("net_days") ?? 30) || 30));
+  const minBatchCents = Math.max(0, Math.round(Number(formData.get("min_batch_cents") ?? 0) || 0));
+  const autoApprove =
+    formData.get("auto_approve") === "on" || formData.get("auto_approve") === "true";
+
+  const next = computeNextRunAt(cadence);
+
+  const { error } = await supabase.from("payout_schedule_config").upsert({
+    id: 1,
+    enabled,
+    cadence,
+    net_days: netDays,
+    min_batch_cents: minBatchCents,
+    auto_approve: autoApprove,
+    next_run_at: next.toISOString(),
+    updated_by: auth.userId,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    redirect(`/workspace/admin/finance?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await supabase.from("audit_events").insert({
+    actor_user_id: auth.userId,
+    actor_org_id: null,
+    action: "payout_schedule.updated",
+    resource_type: "payout_schedule_config",
+    resource_id: null,
+    reason: "admin_finance",
+    after_redacted: {
+      enabled,
+      cadence,
+      net_days: netDays,
+      min_batch_cents: minBatchCents,
+      auto_approve: autoApprove,
+      next_run_at: next.toISOString(),
+    },
+    request_id: rid,
+  });
+
+  redirect("/workspace/admin/finance?ok=schedule_saved");
+}
+
+/** Force-run the scheduled payout job using current config (ignores enabled/next_run). */
+export async function runPayoutScheduleNow(_formData: FormData) {
+  const { auth, supabase } = await requireAdminActor();
+
+  const { data: config } = await supabase
+    .from("payout_schedule_config")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (!config) {
+    redirect(
+      `/workspace/admin/finance?error=${encodeURIComponent("Schedule config missing — apply payout_schedule migration")}`,
+    );
+  }
+
+  const result = await runScheduledPayout(supabase, {
+    netDays: config.net_days ?? 30,
+    minBatchCents: Number(config.min_batch_cents) || 0,
+    autoApprove: !!config.auto_approve,
+    actorUserId: auth.userId,
+    source: "manual",
+  });
+
+  await recordScheduleRun(supabase, result, (config.cadence as PayoutCadence) || "weekly");
+
+  if (!result.ok) {
+    redirect(`/workspace/admin/finance?error=${encodeURIComponent(result.message)}`);
+  }
+  if (result.skipped) {
+    redirect(`/workspace/admin/finance?ok=schedule_skipped&msg=${encodeURIComponent(result.message)}`);
+  }
+  redirect(
+    `/workspace/admin/finance?ok=schedule_ran&batch=${result.batchId}&msg=${encodeURIComponent(result.message)}`,
+  );
 }
