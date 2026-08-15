@@ -12,7 +12,7 @@ export default async function Workspace({
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) redirect("/sign-in");
 
-  await ensureUser(supabase, data.claims as {
+  const appUser = await ensureUser(supabase, data.claims as {
     sub?: string;
     email?: string;
     user_metadata?: { display_name?: string };
@@ -21,11 +21,18 @@ export default async function Workspace({
   const params = await searchParams;
   const { data: isAdmin } = await supabase.rpc("is_platform_admin");
 
-  const { data: memberships } = await supabase
+  let membershipsQuery = supabase
     .from("organization_members")
     .select(
       "organization_id, role:roles(name, code), organization:organizations(legal_name, type, status, onboarding_status)",
-    );
+    )
+    .eq("status", "active");
+
+  if (appUser?.id) {
+    membershipsQuery = membershipsQuery.eq("user_id", appUser.id);
+  }
+
+  const { data: memberships } = await membershipsQuery;
 
   return (
     <main>
