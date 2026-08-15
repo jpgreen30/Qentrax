@@ -36,7 +36,7 @@ export default async function AdminWorkspace() {
     .order("updated_at", { ascending: false })
     .limit(20);
 
-  const { data: txnCount } = await supabase
+  const { count: txnCount } = await supabase
     .from("transactions")
     .select("id", { count: "exact", head: true });
 
