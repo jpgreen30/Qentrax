@@ -2,12 +2,16 @@ import { apiError, apiOk } from "@/lib/api";
 import { requestId } from "@/lib/request-id";
 import { generatePublicTransactionId } from "@/lib/transaction-id";
 import { createClient } from "@/lib/supabase/server";
+import {
+  flattenIntakePayload,
+  loadFieldSchemas,
+  validateAgainstSchemas,
+} from "@/lib/validate-vertical-fields";
+import { PRIMARY_VERTICAL_CODES } from "@/lib/verticals";
 
 /**
- * Controlled opportunity intake (Phase 3/4 skeleton).
- * Requires authenticated publisher membership on the source org.
- * Full Q-Shield + auction workers land in later hardening; this path
- * records received → validating shell with reason-coded stubs.
+ * Controlled opportunity intake.
+ * Validates ping + post fields against vertical_field_schemas before record.
  */
 export async function POST(request: Request) {
   const id = requestId(
@@ -28,6 +32,8 @@ export async function POST(request: Request) {
     consumer?: Record<string, unknown>;
     attributes?: Record<string, unknown>;
     consent?: Record<string, unknown>;
+    /** When true, only validate ping-phase (rare); default requires full post contact */
+    ping_only?: boolean;
   };
   try {
     body = await request.json();
@@ -37,6 +43,14 @@ export async function POST(request: Request) {
 
   if (!body.source_id) {
     return apiError("VALIDATION_ERROR", "source_id is required.", id, 400);
+  }
+  if (!body.vertical) {
+    return apiError(
+      "VALIDATION_ERROR",
+      `vertical is required. Primary codes: ${PRIMARY_VERTICAL_CODES.join(", ")}.`,
+      id,
+      400,
+    );
   }
 
   const { data: source } = await supabase
@@ -49,7 +63,6 @@ export async function POST(request: Request) {
     return apiError("AUTH_FORBIDDEN", "Source not found or not accessible.", id, 403);
   }
 
-  // Test mode: only draft/testing/approved/active may submit; live charges blocked until Phase 4 workers
   if (!["draft", "testing", "approved", "active"].includes(source.status)) {
     return apiError(
       "VALIDATION_ERROR",
@@ -60,24 +73,74 @@ export async function POST(request: Request) {
     );
   }
 
-  let verticalId: string | null = null;
+  const { data: v } = await supabase
+    .from("verticals")
+    .select("id, code")
+    .eq("code", body.vertical)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (!v) {
+    return apiError(
+      "VALIDATION_ERROR",
+      `Unknown or inactive vertical '${body.vertical}'.`,
+      id,
+      400,
+      { reason_code: "VERTICAL_UNKNOWN" },
+    );
+  }
+
   let productId: string | null = null;
-  if (body.vertical) {
-    const { data: v } = await supabase
-      .from("verticals")
+  if (body.product) {
+    const { data: p } = await supabase
+      .from("products")
       .select("id")
-      .eq("code", body.vertical)
+      .eq("vertical_id", v.id)
+      .eq("code", body.product)
+      .eq("active", true)
       .maybeSingle();
-    verticalId = v?.id ?? null;
-    if (v && body.product) {
-      const { data: p } = await supabase
-        .from("products")
-        .select("id")
-        .eq("vertical_id", v.id)
-        .eq("code", body.product)
-        .maybeSingle();
-      productId = p?.id ?? null;
+    if (!p) {
+      return apiError(
+        "VALIDATION_ERROR",
+        `Unknown product '${body.product}' for vertical '${body.vertical}'.`,
+        id,
+        400,
+      );
     }
+    productId = p.id;
+  }
+
+  const schemas = await loadFieldSchemas(supabase, body.vertical, body.product ?? null);
+  const bag = flattenIntakePayload({
+    attributes: body.attributes,
+    consumer: body.consumer,
+    consent: body.consent,
+  });
+  const validated = validateAgainstSchemas(body.vertical, schemas, bag, {
+    requirePost: !body.ping_only,
+  });
+
+  if (!validated.ok) {
+    return apiError(
+      "VALIDATION_ERROR",
+      "Opportunity failed vertical field validation.",
+      id,
+      400,
+      {
+        reason_code: "SCHEMA_INVALID",
+        issues: validated.issues,
+      },
+    );
+  }
+
+  if (!validated.hasConsent) {
+    return apiError(
+      "VALIDATION_ERROR",
+      "TCPA consent is required (tcpa_consent and/or tcpa_text).",
+      id,
+      400,
+      { reason_code: "CONSENT_MISSING" },
+    );
   }
 
   const publicTxn = generatePublicTransactionId();
@@ -87,11 +150,12 @@ export async function POST(request: Request) {
       public_transaction_id: publicTxn,
       publisher_org_id: source.publisher_org_id,
       source_id: source.id,
-      vertical_id: verticalId,
+      vertical_id: v.id,
       product_id: productId,
       external_submission_id: body.external_submission_id ?? null,
       status: "validating",
       schema_version: "v1",
+      ping_attributes: validated.pingAttributes,
     })
     .select("id, public_transaction_id, status")
     .single();
@@ -114,9 +178,9 @@ export async function POST(request: Request) {
     .from("validation_runs")
     .insert({
       opportunity_id: opportunity.id,
-      pipeline_version: "v1-stub",
+      pipeline_version: "v1-schema",
       status: "completed",
-      composite_score: body.consent ? 90 : 40,
+      composite_score: 92,
       completed_at: new Date().toISOString(),
     })
     .select("id")
@@ -133,17 +197,16 @@ export async function POST(request: Request) {
       {
         validation_run_id: run.id,
         check_code: "CONSENT",
-        outcome: body.consent ? "pass" : "fail",
-        reason_code: body.consent ? null : "CONSENT_MISSING",
+        outcome: "pass",
+        reason_code: null,
       },
     ]);
   }
 
-  const accepted = Boolean(body.consent);
   await supabase
     .from("opportunities")
     .update({
-      status: accepted ? "ready" : "rejected_quality",
+      status: "ready",
       updated_at: new Date().toISOString(),
     })
     .eq("id", opportunity.id);
@@ -151,14 +214,15 @@ export async function POST(request: Request) {
   return apiOk(
     {
       transaction_id: opportunity.public_transaction_id,
-      status: accepted ? "accepted" : "rejected",
-      decision: accepted
-        ? { buyer_status: "queued_for_auction", note: "Auction worker not yet live (Phase 4)" }
-        : { buyer_status: "rejected", reason_codes: ["CONSENT_MISSING"] },
-      quality: {
-        score: accepted ? 90 : 40,
-        reason_codes: accepted ? [] : ["CONSENT_MISSING"],
+      status: "accepted",
+      vertical: body.vertical,
+      product: body.product ?? null,
+      ping_attributes: validated.pingAttributes,
+      decision: {
+        buyer_status: "queued_for_auction",
+        note: "Schema + consent passed. Auction worker runs on submit-test or Phase 4 worker.",
       },
+      quality: { score: 92, reason_codes: [] },
     },
     id,
   );
