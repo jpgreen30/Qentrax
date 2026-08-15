@@ -1,40 +1,37 @@
 # Implementation status
 
-Last updated: 2026-08-15
+Last updated: 2026-08-15 (E2E pass)
 
 ## Phase status
 
-| Phase | Status | Evidence / remaining gate |
+| Phase | Status | Notes |
 |---|---|---|
-| 0 Foundation | **Complete** | Auth shell, migrations, RLS, magic-link live verified (`jpgreen1@gmail.com` → `/workspace`). |
-| Public marketing site | Complete | Design parity on Vercel. |
-| 1 Accounts/onboarding | **In progress — core live** | Org create + membership + profiles + agreements seed + permission matrix + `/onboarding` + workspace routing. Admin approval queue UI and KYB provider adapters remain. |
-| 2 Campaigns/funding | **Scaffold live** | Campaigns, versions, endpoints, financial_accounts, journals/ledger tables + draft campaign UI/API. Stripe funding intents not wired. |
-| 3 Sources/intake | **Scaffold live** | publisher_sources, consent_templates, integrations + draft source UI/API + opportunity POST skeleton. |
-| 4 Marketplace/Q-Shield | **Schema + stub intake** | opportunities, validation_runs/results, auction_*, deliveries, transactions, conversion_events. Intake records validating→ready/rejected_quality; auction worker not live. |
-| 5 Attribution | Schema only | conversion_events table + unique external_event_id. API worker pending. |
-| 6 Returns/payouts | Not started | Payables batching pending. |
-| 7 Hardening | Not started | Load/security/runbooks pending. |
+| 0 Foundation | **Complete** | Auth, RLS, magic-link, bootstrap |
+| Marketing site | **Complete** | Design system + dashboard previews |
+| 1 Accounts | **Live** | Org register, admin approve, memberships |
+| 2 Campaigns/funding | **Live (test)** | Draft/activate, vertical + state targeting, test ledger funding |
+| 3 Sources/intake | **Live** | Sources + schema-validated opportunity intake |
+| 4 Marketplace | **Live (in-DB)** | Multi-candidate auction, delivery record, billable txn + journals |
+| 5 Attribution | **Live (API)** | `POST /api/v1/conversions` + `record_conversion_event` |
+| 6 Returns/payouts | Partial | Publisher payable ledger exists; batch payout UI not started |
+| 7 Hardening | Not started | Load tests, real endpoint HTTP worker, Stripe prod |
 
-## Live database (Supabase `wmrfdzkcjtceuhloerte`)
+## Primary verticals
 
-- Phase 0–4 migrations applied
-- 10 roles, 48 role_permissions, 20 reason codes, 4 agreements
-- 6 verticals, 19 products
-- RLS on tenant tables
+life_insurance, personal_loans, auto_insurance, solar, home_services, legal, real_estate  
+(with ping/post field schemas)
 
-## App routes
+## Key RPCs
 
-- `/sign-in`, `/auth/confirm`, `/workspace`
-- `/onboarding` — create advertiser/publisher org
-- `/workspace/advertiser?org=` — draft campaigns
-- `/workspace/publisher?org=` — draft sources
-- `POST /api/v1/organizations`, `campaigns`, `sources`, `opportunities`
-- `GET /api/v1/health`
+- `register_organization`
+- `record_test_funding`
+- `activate_campaign_if_ready`
+- `run_minimal_auction` (enhanced ranking + budgets + state filter)
+- `record_conversion_event`
 
-## Owner blockers for money movement
+## Owner remaining for production money
 
-- Stripe keys + webhook endpoint (Phase 2 funding)
-- Counsel-approved agreement PDFs (replace seed summaries)
-- KYB provider credentials
-- Queue/worker deployment before live auction latency path
+1. Stripe live keys + webhook → replace test funding  
+2. Buyer endpoint HTTP worker (today: simulated accept)  
+3. PX API token when client onboarded  
+4. Counsel agreements / KYB  

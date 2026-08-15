@@ -12,10 +12,30 @@ export async function createCampaign(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const baseBid = Number(formData.get("base_bid_cents") ?? 0);
   const dailyBudget = Number(formData.get("daily_budget_cents") ?? 0);
+  const verticalCode = String(formData.get("vertical_code") ?? "").trim();
+  const statesRaw = String(formData.get("states") ?? "").trim();
 
   if (!organizationId || !name) redirect(`/workspace/advertiser?org=${organizationId}`);
 
   const supabase = await createClient();
+
+  let verticalId: string | null = null;
+  if (verticalCode) {
+    const { data: v } = await supabase
+      .from("verticals")
+      .select("id")
+      .eq("code", verticalCode)
+      .maybeSingle();
+    verticalId = v?.id ?? null;
+  }
+
+  const states = statesRaw
+    ? statesRaw
+        .split(/[,\s]+/)
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean)
+    : [];
+
   const { data: campaign } = await supabase
     .from("campaigns")
     .insert({
@@ -23,6 +43,8 @@ export async function createCampaign(formData: FormData) {
       name,
       base_bid_cents: Number.isFinite(baseBid) ? baseBid : 0,
       daily_budget_cents: Number.isFinite(dailyBudget) ? dailyBudget : null,
+      vertical_id: verticalId,
+      targeting_json: states.length ? { states } : {},
       status: "draft",
     })
     .select("id")
@@ -75,7 +97,11 @@ export async function activateCampaign(formData: FormData) {
   });
 
   const reason =
-    error ? "error" : data && typeof data === "object" && "reason" in data ? String((data as { reason?: string }).reason ?? "") : "";
+    error
+      ? "error"
+      : data && typeof data === "object" && "reason" in data
+        ? String((data as { reason?: string }).reason ?? "")
+        : "";
   redirect(
     `/workspace/advertiser?org=${organizationId}${reason ? `&activate=${reason}` : "&activated=1"}`,
   );

@@ -15,7 +15,9 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, name, status, base_bid_cents, daily_budget_cents, vertical_id, product_id, created_at")
+    .select(
+      "id, name, status, base_bid_cents, daily_budget_cents, vertical_id, product_id, targeting_json, created_at",
+    )
     .eq("advertiser_org_id", orgId)
     .order("created_at", { ascending: false });
 
@@ -34,7 +36,10 @@ export async function POST(request: Request) {
     base_bid_cents?: number;
     daily_budget_cents?: number;
     vertical_id?: string;
+    vertical_code?: string;
     product_id?: string;
+    product_code?: string;
+    targeting?: { states?: string[] };
   };
   try {
     body = await request.json();
@@ -47,6 +52,30 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+
+  let verticalId = body.vertical_id ?? null;
+  let productId = body.product_id ?? null;
+
+  if (!verticalId && body.vertical_code) {
+    const { data: v } = await supabase
+      .from("verticals")
+      .select("id")
+      .eq("code", body.vertical_code)
+      .maybeSingle();
+    verticalId = v?.id ?? null;
+  }
+  if (verticalId && !productId && body.product_code) {
+    const { data: p } = await supabase
+      .from("products")
+      .select("id")
+      .eq("vertical_id", verticalId)
+      .eq("code", body.product_code)
+      .maybeSingle();
+    productId = p?.id ?? null;
+  }
+
+  const targeting_json = body.targeting ?? {};
+
   const { data: campaign, error } = await supabase
     .from("campaigns")
     .insert({
@@ -54,11 +83,12 @@ export async function POST(request: Request) {
       name: body.name.trim(),
       base_bid_cents: body.base_bid_cents ?? 0,
       daily_budget_cents: body.daily_budget_cents ?? null,
-      vertical_id: body.vertical_id ?? null,
-      product_id: body.product_id ?? null,
+      vertical_id: verticalId,
+      product_id: productId,
+      targeting_json,
       status: "draft",
     })
-    .select("id, name, status, base_bid_cents")
+    .select("id, name, status, base_bid_cents, vertical_id, targeting_json")
     .single();
 
   if (error || !campaign) {

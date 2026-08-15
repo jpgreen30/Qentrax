@@ -10,8 +10,7 @@ import {
 import { PRIMARY_VERTICAL_CODES } from "@/lib/verticals";
 
 /**
- * Controlled opportunity intake.
- * Validates ping + post fields against vertical_field_schemas before record.
+ * Opportunity intake → schema validation → ready → marketplace auction (unless skip_auction).
  */
 export async function POST(request: Request) {
   const id = requestId(
@@ -32,8 +31,9 @@ export async function POST(request: Request) {
     consumer?: Record<string, unknown>;
     attributes?: Record<string, unknown>;
     consent?: Record<string, unknown>;
-    /** When true, only validate ping-phase (rare); default requires full post contact */
     ping_only?: boolean;
+    /** Default true: run auction immediately after validation */
+    run_auction?: boolean;
   };
   try {
     body = await request.json();
@@ -211,18 +211,27 @@ export async function POST(request: Request) {
     })
     .eq("id", opportunity.id);
 
+  const shouldAuction = body.run_auction !== false;
+  let auction: unknown = null;
+  if (shouldAuction) {
+    const { data: auctionResult, error: auctionError } = await supabase.rpc("run_minimal_auction", {
+      p_opportunity_id: opportunity.id,
+    });
+    auction = auctionError
+      ? { status: "error", message: auctionError.message }
+      : auctionResult;
+  }
+
   return apiOk(
     {
       transaction_id: opportunity.public_transaction_id,
+      opportunity_id: opportunity.id,
       status: "accepted",
       vertical: body.vertical,
       product: body.product ?? null,
       ping_attributes: validated.pingAttributes,
-      decision: {
-        buyer_status: "queued_for_auction",
-        note: "Schema + consent passed. Auction worker runs on submit-test or Phase 4 worker.",
-      },
       quality: { score: 92, reason_codes: [] },
+      auction,
     },
     id,
   );
