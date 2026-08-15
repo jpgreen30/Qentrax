@@ -47,10 +47,17 @@ POST /api/v1/conversions
 }
 ```
 
+## Delivery
+
+- After auction, if the winning campaign has an **active** `campaign_endpoints` URL, Qentrax POSTs a JSON payload to that URL.
+- Missing / failing endpoints fall back to **simulated accept** (same as the original in-DB path).
+- Manual replay: `POST /api/v1/deliveries` with `{ organization_id, transaction_id, endpoint_url?, simulate? }`.
+- Set endpoint URL when creating a campaign (Buyer endpoint URL field).
+
 ## Still external / later
 
 - Real Stripe webhooks (test ledger works)
-- Live HTTP post to buyer endpoints (delivery is simulated accept today)
+- Production buyer SLA / retry worker (basic HTTP post is live)
 - PX token delivery adapter
 - Net-30 payout batching
 - Returns / disputes workflow UI
