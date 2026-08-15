@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createSource } from "./actions";
+import { createSource, submitTestOpportunity } from "./actions";
 
 export default async function PublisherWorkspace({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string; opp?: string; txn?: string; opp_error?: string }>;
 }) {
-  const { org: orgId } = await searchParams;
+  const params = await searchParams;
+  const orgId = params.org;
   if (!orgId) redirect("/workspace");
 
   const supabase = await createClient();
@@ -29,6 +30,13 @@ export default async function PublisherWorkspace({
     .eq("publisher_org_id", orgId)
     .order("created_at", { ascending: false });
 
+  const { data: txns } = await supabase
+    .from("transactions")
+    .select("id, status, advertiser_price_cents, publisher_amount_cents, created_at, opportunity_id")
+    .eq("publisher_org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   return (
     <main>
       <nav>
@@ -41,9 +49,21 @@ export default async function PublisherWorkspace({
         <p className="eyebrow">PUBLISHER · {org.onboarding_status}</p>
         <h1>{org.legal_name}</h1>
         <p className="lede">
-          Register sources with consent provenance. Live traffic requires source
-          approval; test submissions never create advertiser charges.
+          Submit a test opportunity to run the minimal auction against active,
+          funded advertiser campaigns.
         </p>
+
+        {params.opp && (
+          <p className="notice" role="status">
+            Auction result: <strong>{params.opp}</strong>
+            {params.txn ? ` · ${params.txn}` : ""}
+          </p>
+        )}
+        {params.opp_error && (
+          <p className="notice" role="alert">
+            Opportunity or auction failed. Ensure an active funded campaign exists.
+          </p>
+        )}
 
         <form action={createSource}>
           <input type="hidden" name="organization_id" value={orgId} />
@@ -74,12 +94,34 @@ export default async function PublisherWorkspace({
                   {s.domain ? ` · ${s.domain}` : ""}
                 </small>
               </span>
-              <em className="mono">{s.id.slice(0, 8)}</em>
+              <form action={submitTestOpportunity}>
+                <input type="hidden" name="organization_id" value={orgId} />
+                <input type="hidden" name="source_id" value={s.id} />
+                <button className="button" type="submit">
+                  Submit test lead
+                </button>
+              </form>
             </div>
           ))}
           {!sources?.length && (
             <p className="notice">No sources yet. Create a draft above.</p>
           )}
+        </div>
+
+        <h2>Recent billable transactions</h2>
+        <div className="tenant-list">
+          {(txns ?? []).map((t) => (
+            <div key={t.id} className="tenant-card">
+              <span>
+                <strong>{t.status}</strong>
+                <small>
+                  charge ${(t.advertiser_price_cents / 100).toFixed(2)} · pub $
+                  {(t.publisher_amount_cents / 100).toFixed(2)}
+                </small>
+              </span>
+            </div>
+          ))}
+          {!txns?.length && <p className="notice">No transactions yet.</p>}
         </div>
       </section>
     </main>

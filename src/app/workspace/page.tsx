@@ -19,6 +19,7 @@ export default async function Workspace({
   });
 
   const params = await searchParams;
+  const { data: isAdmin } = await supabase.rpc("is_platform_admin");
 
   const { data: memberships } = await supabase
     .from("organization_members")
@@ -33,18 +34,19 @@ export default async function Workspace({
           QENTRAX
         </Link>
         <span className="pill">Authenticated</span>
+        {isAdmin ? <Link href="/workspace/admin">Admin</Link> : null}
       </nav>
       <section className="workspace">
         <p className="eyebrow">ORGANIZATION CONTEXT</p>
         <h1>Choose your workspace</h1>
         <p className="lede">
-          Signed in as {String(data.claims.email ?? "")}. Every workspace query
-          is constrained by organization membership and database RLS.
+          Signed in as {String(data.claims.email ?? "")}. Demo path: create org →
+          admin approve → fund advertiser → activate campaign → publisher test lead.
         </p>
         {params.org && (
           <p className="notice" role="status">
-            Organization created. Complete KYB review in a later step; you can
-            already create draft campaigns or sources.
+            Organization created. Ask a platform admin to approve it, then fund and
+            activate campaigns.
           </p>
         )}
         <div className="tenant-list">
@@ -61,7 +63,9 @@ export default async function Workspace({
                 ? `/workspace/advertiser?org=${m.organization_id}`
                 : org?.type === "publisher"
                   ? `/workspace/publisher?org=${m.organization_id}`
-                  : `/workspace`;
+                  : org?.type === "platform"
+                    ? `/workspace/admin`
+                    : `/workspace`;
             return (
               <Link key={m.organization_id} href={href} className="tenant-card">
                 <span>
@@ -78,8 +82,8 @@ export default async function Workspace({
         {!memberships?.length && (
           <p className="notice">
             Your identity is verified.{" "}
-            <Link href="/onboarding">Create an advertiser or publisher organization</Link>{" "}
-            to continue.
+            <Link href="/onboarding">Create an advertiser or publisher organization</Link>
+            .
           </p>
         )}
         {!!memberships?.length && (

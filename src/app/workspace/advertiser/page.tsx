@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createCampaign } from "./actions";
+import { activateCampaign, createCampaign, postTestFunding } from "./actions";
 
 export default async function AdvertiserWorkspace({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string; funded?: string; fund_error?: string; activated?: string; activate?: string }>;
 }) {
-  const { org: orgId } = await searchParams;
+  const params = await searchParams;
+  const orgId = params.org;
   if (!orgId) redirect("/workspace");
 
   const supabase = await createClient();
@@ -29,6 +30,10 @@ export default async function AdvertiserWorkspace({
     .eq("advertiser_org_id", orgId)
     .order("created_at", { ascending: false });
 
+  const { data: balance } = await supabase.rpc("advertiser_available_balance_cents", {
+    p_organization_id: orgId,
+  });
+
   return (
     <main>
       <nav>
@@ -41,9 +46,31 @@ export default async function AdvertiserWorkspace({
         <p className="eyebrow">ADVERTISER · {org.onboarding_status}</p>
         <h1>{org.legal_name}</h1>
         <p className="lede">
-          Draft campaigns are available before funding. Activation requires
-          approval, endpoint health, and available balance (Phase 2).
+          Available balance:{" "}
+          <strong>${(Number(balance ?? 0) / 100).toFixed(2)}</strong>
+          {" "}· Min opening fund $500 (test mode posts a balanced ledger journal).
         </p>
+
+        {params.funded && <p className="notice" role="status">Test funding posted to ledger.</p>}
+        {params.fund_error && (
+          <p className="notice" role="alert">
+            Funding failed. Org must be a member advertiser; minimum $500.
+          </p>
+        )}
+        {params.activated && <p className="notice" role="status">Campaign activated.</p>}
+        {params.activate && (
+          <p className="notice" role="alert">
+            Activation blocked: {params.activate}. Approve org and fund first.
+          </p>
+        )}
+
+        <form action={postTestFunding}>
+          <input type="hidden" name="organization_id" value={orgId} />
+          <input type="hidden" name="amount_cents" value={50000} />
+          <button className="button" type="submit">
+            Post $500 test funding
+          </button>
+        </form>
 
         <form action={createCampaign}>
           <input type="hidden" name="organization_id" value={orgId} />
@@ -76,6 +103,15 @@ export default async function AdvertiserWorkspace({
                     : ""}
                 </small>
               </span>
+              {c.status !== "active" && (
+                <form action={activateCampaign}>
+                  <input type="hidden" name="organization_id" value={orgId} />
+                  <input type="hidden" name="campaign_id" value={c.id} />
+                  <button className="button" type="submit">
+                    Activate
+                  </button>
+                </form>
+              )}
             </div>
           ))}
           {!campaigns?.length && (
