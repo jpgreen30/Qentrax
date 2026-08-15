@@ -111,6 +111,14 @@ export default async function AdvertiserCampaigns({
             Daily budget (cents)
             <input name="daily_budget_cents" type="number" min={0} defaultValue={50000} />
           </label>
+          <label>
+            Buyer endpoint URL (optional)
+            <input
+              name="endpoint_url"
+              type="url"
+              placeholder="https://buyer.example.com/leads"
+            />
+          </label>
           <button className="dashAction" type="submit">
             Create draft campaign
           </button>
