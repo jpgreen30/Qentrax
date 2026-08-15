@@ -31,7 +31,127 @@ export default function Home(){return <main>
   <article><span>02</span><label>COMPLIANCE / CONSENT</label><p style={{marginTop:12}}>Building a consent trail buyers can actually use</p><p style={{fontSize:11,color:"#7a8b8f",marginTop:16}}>What source, timestamp, disclosure and delivery evidence should travel with every opportunity.</p><a href="#contact" style={{position:"absolute",bottom:25,font:"8px var(--mono)",color:"var(--acid)"}}>READ THE BRIEFING ↗</a></article>
   <article><span>03</span><label>OPERATIONS / WORKFLOWS</label><p style={{marginTop:12}}>Closing the loop between lead delivery and revenue</p><p style={{fontSize:11,color:"#7a8b8f",marginTop:16}}>How disposition feedback makes routing, pricing and source optimization smarter over time.</p><a href="#contact" style={{position:"absolute",bottom:25,font:"8px var(--mono)",color:"var(--acid)"}}>READ THE BRIEFING ↗</a></article>
  </div></div></section>
- <section className="cases shell" id="deployments"><header className="splitHead"><div><label>07 / CASE STUDIES</label><h2>Demand systems built<br/>around the outcome.</h2></div><p>Two examples of how Qentrax can be configured around vertical-specific quality, economics and delivery requirements.</p></header><div className="caseGrid"><article><header><label>CASE STUDY / LIFE INSURANCE</label><span>MODELED OUTCOMES</span></header><div className="caseTitle"><i>◇</i><h3>More conversations with prospects who actually fit.</h3></div><div className="caseBody"><section><label>THE CHALLENGE</label><p>A multi-state insurance buyer needed to reduce invalid contacts, enforce state and product eligibility, and deliver qualified prospects into its existing sales workflow without slowing response time.</p><ul style={{marginTop:12}}><li>Duplicate and recycled prospect records</li><li>Inconsistent consent evidence by source</li><li>State, age and product-fit complexity</li><li>Limited feedback from policy outcomes</li></ul></section><section><label>QENTRAX CONFIGURATION</label><ul><li>Phone, email and identity verification</li><li>Consent proof attached to each record</li><li>Eligibility rules before bidding</li><li>CRM disposition feedback into Q-Score</li></ul></section></div><div className="caseMetrics" style={{gridTemplateColumns:"repeat(3,1fr)"}}><span><b>−34%</b><small>MODELED INVALID CONTACTS</small></span><span><b>+22%</b><small>MODELED CONTACT RATE</small></span><span><b>18ms</b><small>DECISION TARGET</small></span></div></article><article><header><label>CASE STUDY / HOME SERVICES</label><span>MODELED OUTCOMES</span></header><div className="caseTitle"><i>⌁</i><h3>Route every homeowner to the right market, team and bid.</h3></div><div className="caseBody"><section><label>THE CHALLENGE</label><p>A solar network needed to identify project-ready homeowners, prevent duplicate distribution and route each opportunity by service area, utility market and installer capacity.</p><ul style={{marginTop:12}}><li>Overlapping territories and buyer coverage</li><li>Duplicate homeowners across campaigns</li><li>Property and utility qualification gaps</li><li>Capacity changing throughout the day</li></ul></section><section><label>QENTRAX CONFIGURATION</label><ul><li>Address, homeowner and service-area checks</li><li>Network-level duplicate suppression</li><li>Dynamic caps, schedules and bid rules</li><li>Instant CRM and call-center delivery</li></ul></section></div><div className="caseMetrics" style={{gridTemplateColumns:"repeat(3,1fr)"}}><span><b>+29%</b><small>MODELED ACCEPTANCE</small></span><span><b>−41%</b><small>MODELED DUPLICATES</small></span><span><b>94</b><small>TARGET Q-SCORE</small></span></div></article></div><p className="caseDisclosure">Figures shown are modeled program outcomes for illustrative configurations, not claims of historical client performance. Verified results can replace them as programs mature.</p></section>
+<section className="cases" id="case-studies">
+<div className="shell">
+<header>
+<div>
+<label>07 / CASE STUDIES</label>
+<h2>Demand systems built<br/>around the outcome.</h2>
+</div>
+<p>Two examples of how Qentrax can be configured around vertical-specific quality, economics and delivery requirements.</p>
+</header>
+<div className="caseGrid">
+<article className="lifeCase">
+<div className="caseTop">
+<span>CASE STUDY / LIFE INSURANCE</span>
+<b>MODELED OUTCOMES</b>
+</div>
+<div className="caseHero">
+<div>
+<small>NATIONAL LIFE INSURANCE BUYER</small>
+<h3>More conversations with prospects who actually fit.</h3>
+<p>A multi-state insurance buyer needed to reduce invalid contacts, enforce state and product eligibility, and deliver qualified prospects into its existing sales workflow without slowing response time.</p>
+</div>
+<i>LI</i>
+</div>
+<div className="caseBody">
+<div>
+<label>THE CHALLENGE</label>
+<ul>
+<li>Duplicate and recycled prospect records</li>
+<li>Inconsistent consent evidence by source</li>
+<li>State, age and product-fit complexity</li>
+<li>Limited feedback from policy outcomes</li>
+</ul>
+</div>
+<div>
+<label>THE QENTRAX CONFIGURATION</label>
+<ul>
+<li>Phone, email and identity verification</li>
+<li>Consent proof attached to each record</li>
+<li>Eligibility rules before bidding</li>
+<li>CRM disposition feedback into Q-Score</li>
+</ul>
+</div>
+</div>
+<div className="caseMetrics">
+<span>
+<strong>−34%</strong>
+<small>MODELED INVALID CONTACTS</small>
+</span>
+<span>
+<strong>+22%</strong>
+<small>MODELED CONTACT RATE</small>
+</span>
+<span>
+<strong>18ms</strong>
+<small>DECISION TARGET</small>
+</span>
+</div>
+<footer>
+<p>Qentrax sits between acquisition sources and the buyer’s CRM, filtering for insurable intent before the sales team spends time or money.</p>
+<a href="#contact">BUILD A LIFE CAMPAIGN ↗</a>
+</footer>
+</article>
+<article className="solarCase">
+<div className="caseTop">
+<span>CASE STUDY / HOME SERVICES</span>
+<b>MODELED OUTCOMES</b>
+</div>
+<div className="caseHero">
+<div>
+<small>REGIONAL SOLAR INSTALLER NETWORK</small>
+<h3>Route every homeowner to the right market, team and bid.</h3>
+<p>A solar network needed to identify project-ready homeowners, prevent duplicate distribution and route each opportunity by service area, utility market and installer capacity.</p>
+</div>
+<i>☀</i>
+</div>
+<div className="caseBody">
+<div>
+<label>THE CHALLENGE</label>
+<ul>
+<li>Overlapping territories and buyer coverage</li>
+<li>Duplicate homeowners across campaigns</li>
+<li>Property and utility qualification gaps</li>
+<li>Capacity changing throughout the day</li>
+</ul>
+</div>
+<div>
+<label>THE QENTRAX CONFIGURATION</label>
+<ul>
+<li>Address, homeowner and service-area checks</li>
+<li>Network-level duplicate suppression</li>
+<li>Dynamic caps, schedules and bid rules</li>
+<li>Instant CRM and call-center delivery</li>
+</ul>
+</div>
+</div>
+<div className="caseMetrics">
+<span>
+<strong>+29%</strong>
+<small>MODELED ACCEPTANCE</small>
+</span>
+<span>
+<strong>−41%</strong>
+<small>MODELED DUPLICATES</small>
+</span>
+<span>
+<strong>94</strong>
+<small>TARGET Q-SCORE</small>
+</span>
+</div>
+<footer>
+<p>Qentrax turns one solar inquiry into a controlled marketplace decision—matching geography, quality and live installer demand.</p>
+<a href="#contact">BUILD A SOLAR CAMPAIGN ↗</a>
+</footer>
+</article>
+</div>
+<div className="caseDisclosure">
+<span>ABOUT THESE STUDIES</span>
+<p>Figures shown are modeled program outcomes for illustrative configurations, not claims of historical client performance. Verified results can replace them as programs mature.</p>
+</div>
+</div>
+</section>
  <section className="company" id="company"><div className="shell"><div><label>08 / ABOUT QENTRAX</label><h2>Infrastructure for a more accountable demand market.</h2><p>Qentrax is an AI-native marketplace built for the teams that create, buy and convert consumer demand. We connect trusted publishers with serious advertisers, then apply intelligence to every step between first signal and final outcome.</p><p style={{color:"var(--muted)",lineHeight:1.7,marginTop:16}}>Our platform is designed around a simple principle: better evidence creates better transactions. That means clearer quality signals, programmable economics, protected delivery and feedback that improves the network.</p><div className="stats"><span><b>REAL TIME</b><small>DECISIONING</small></span><span><b>TWO-SIDED</b><small>MARKETPLACE</small></span><span><b>API FIRST</b><small>INFRASTRUCTURE</small></span></div></div><div className="mission"><label>OUR MISSION</label><h3>Make every consumer opportunity traceable, measurable and worthy of action.</h3><p>We are building the trust and intelligence layer for consumer demand—so publishers are rewarded for quality, buyers gain control, and consumers move through a more responsible ecosystem.</p><ul style={{listStyle:"none",padding:0,marginTop:24}}><li style={{padding:"8px 0",borderTop:"1px solid #ffffff1b",fontSize:13}}><strong>01</strong> · Raise the quality floor — Evidence before volume.</li><li style={{padding:"8px 0",borderTop:"1px solid #ffffff1b",fontSize:13}}><strong>02</strong> · Protect the transaction — Control access and exposure.</li><li style={{padding:"8px 0",borderTop:"1px solid #ffffff1b",fontSize:13}}><strong>03</strong> · Align every outcome — Learn from real dispositions.</li></ul></div></div></section>
  <section className="contact shell" id="contact"><div><label>08 / CONTACT THE NETWORK</label><h2>Let’s design your<br/>connection.</h2><p>Tell us whether you buy demand, generate it, or need a custom integration. Our network team will map the right path.</p><a href="mailto:network@qentrax.io">network@qentrax.io</a></div><form><div><label>YOUR NAME<input required placeholder="Full name"/></label><label>WORK EMAIL<input required type="email" placeholder="you@company.com"/></label></div><label>HOW CAN WE HELP?<textarea required rows={5} placeholder="Tell us about your goals, verticals and current workflow."/></label><button className="primary">SEND TO QENTRAX ↗</button></form></section>
  <section className="cta"><div className="shell"><label>READY TO CONNECT?</label><h2>Turn demand into accountable growth.</h2><aside><Link className="dark" href="/sign-in">ENTER NETWORK ↗</Link></aside></div></section>
