@@ -1,5 +1,13 @@
 /**
- * Resolve Qentrax organization access from authenticated Supabase user.
+ * Resolve Qentrax organization access from authenticated identity.
+ *
+ * Identity boundary:
+ *   verified OAuth sub (Auth UID)
+ *   → public.users.auth_subject
+ *   → public.users.id
+ *   → organization_members.user_id
+ *
+ * Never treat Auth UID as organization_members.user_id.
  * Never trust model-supplied org IDs without membership check.
  */
 
@@ -13,23 +21,70 @@ export type Membership = {
   legal_name?: string | null;
 };
 
+/**
+ * Map verified Auth subject → active public.users.id.
+ * Lookup only — does not create users.
+ */
+export async function resolveAppUserIdFromAuthSubject(
+  supabase: SupabaseClient,
+  authSubject: string,
+): Promise<
+  | { ok: true; appUserId: string }
+  | { ok: false; code: "USER_NOT_FOUND" | "USER_INACTIVE"; message: string }
+> {
+  const subject = (authSubject ?? "").trim();
+  if (!subject) {
+    return { ok: false, code: "USER_NOT_FOUND", message: "Missing authenticated subject." };
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, status")
+    .eq("auth_subject", subject)
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    return {
+      ok: false,
+      code: "USER_NOT_FOUND",
+      message: "No application user for this authenticated identity.",
+    };
+  }
+  if (data.status !== "active") {
+    return {
+      ok: false,
+      code: "USER_INACTIVE",
+      message: "Application user is not active.",
+    };
+  }
+  return { ok: true, appUserId: data.id };
+}
+
+/**
+ * List active memberships for a verified OAuth Auth subject.
+ * Always maps Auth UID → public.users.id before querying organization_members.
+ */
 export async function listActiveMemberships(
   supabase: SupabaseClient,
-  userId: string,
+  authSubject: string,
 ): Promise<Membership[]> {
+  const resolved = await resolveAppUserIdFromAuthSubject(supabase, authSubject);
+  if (!resolved.ok) return [];
+
   const { data, error } = await supabase
     .from("organization_members")
-    .select("organization_id, role, status, organizations(type, legal_name)")
-    .eq("user_id", userId)
+    .select("organization_id, status, organizations(type, legal_name), roles(code)")
+    .eq("user_id", resolved.appUserId)
     .eq("status", "active");
 
   if (error || !data) return [];
 
   return data.map((row) => {
     const org = row.organizations as { type?: string; legal_name?: string } | null;
+    const roleRow = row.roles as { code?: string } | null;
     return {
       organization_id: row.organization_id as string,
-      role: String(row.role ?? ""),
+      role: String(roleRow?.code ?? ""),
       status: String(row.status ?? ""),
       org_type: org?.type ?? null,
       legal_name: org?.legal_name ?? null,
@@ -40,8 +95,8 @@ export async function listActiveMemberships(
 /**
  * Resolve org for performance queries.
  * - If organizationId provided: must be an active membership (else reject).
- * - If omitted: use sole membership if exactly one; if multiple publisher-like
- *   memberships, prefer type=publisher; if still ambiguous, return error.
+ * - If omitted: use sole membership if exactly one; prefer type=publisher;
+ *   if still ambiguous, return error (do not silently pick).
  */
 export function resolveOrganizationAccess(
   memberships: Membership[],
@@ -68,7 +123,7 @@ export function resolveOrganizationAccess(
       };
     }
     const role =
-      m.role === "advertiser" || m.org_type === "advertiser"
+      m.org_type === "advertiser" || m.role.includes("advertiser")
         ? "advertiser"
         : "publisher";
     return { ok: true, organization_id: m.organization_id, role };
@@ -77,17 +132,14 @@ export function resolveOrganizationAccess(
   if (memberships.length === 1) {
     const m = memberships[0]!;
     const role =
-      m.role === "advertiser" || m.org_type === "advertiser"
+      m.org_type === "advertiser" || m.role.includes("advertiser")
         ? "advertiser"
         : "publisher";
     return { ok: true, organization_id: m.organization_id, role };
   }
 
   const preferred = memberships.filter(
-    (m) =>
-      m.role === preferredRole ||
-      m.org_type === preferredRole ||
-      (preferredRole === "publisher" && (m.role === "owner" || m.role === "admin")),
+    (m) => m.org_type === preferredRole || m.role.includes(preferredRole),
   );
   if (preferred.length === 1) {
     const m = preferred[0]!;

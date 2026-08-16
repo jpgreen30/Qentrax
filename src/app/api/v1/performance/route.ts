@@ -5,15 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPerformance } from "@/lib/services/performance";
 import { isMcpToken, isMcpOAuthBridge, mcpBoundOrg } from "@/lib/mcp-auth";
+import {
+  listActiveMembershipsForAuthSubject,
+  type MembershipOrgRow,
+} from "@/lib/resolve-app-user";
 
-type MembershipRow = {
-  organization_id: string;
-  role: string;
-  status: string;
-  organizations: { type?: string } | { type?: string }[] | null;
-};
-
-function orgType(r: MembershipRow): string | undefined {
+function orgType(r: MembershipOrgRow): string | undefined {
   const o = r.organizations;
   const one = Array.isArray(o) ? o[0] : o;
   return one?.type;
@@ -23,6 +20,10 @@ function orgType(r: MembershipRow): string | undefined {
  * GET/POST /api/v1/performance
  * Auth: session | MCP shared token (legacy) | MCP OAuth bridge headers
  * Org from memberships for OAuth users — never arbitrary model-supplied foreign orgs.
+ *
+ * OAuth bridge identity: JWT sub (Auth UID) → public.users.auth_subject →
+ * public.users.id → organization_members.user_id. Never query memberships with
+ * auth.users.id.
  */
 async function handlePerformance(
   request: Request,
@@ -47,14 +48,23 @@ async function handlePerformance(
   let supabase;
 
   if (bridge.ok && bridge.userId) {
+    // bridge.userId is the verified OAuth subject (Auth UID) — map to app user
     supabase = createAdminClient();
-    const { data: memberships } = await supabase
-      .from("organization_members")
-      .select("organization_id, role, status, organizations(type)")
-      .eq("user_id", bridge.userId)
-      .eq("status", "active");
+    const resolved = await listActiveMembershipsForAuthSubject(
+      supabase,
+      bridge.userId,
+    );
 
-    const rows = (memberships ?? []) as MembershipRow[];
+    if (!resolved.ok) {
+      return apiError(
+        "FORBIDDEN",
+        resolved.message,
+        id,
+        403,
+      );
+    }
+
+    const rows = resolved.memberships;
     if (rows.length === 0) {
       return apiError(
         "FORBIDDEN",
@@ -108,6 +118,7 @@ async function handlePerformance(
     if (!organization_id) {
       return apiError("INVALID_REQUEST", "organization_id is required.", id, 400);
     }
+    // Session path: auth.userId is already public.users.id (via ensureUser)
     supabase = await createClient();
     const { data: membership } = await supabase
       .from("organization_members")
