@@ -56,7 +56,7 @@ async function callJson<T>(
       return {
         ok: false,
         code: err?.code ?? `HTTP_${res.status}`,
-        message: err?.message ?? text.slice(0, 300) || res.statusText,
+        message: err?.message ?? (text.slice(0, 300) || res.statusText),
       };
     }
     return { ok: true, data: json as T };
