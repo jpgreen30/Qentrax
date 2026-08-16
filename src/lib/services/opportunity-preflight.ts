@@ -97,17 +97,9 @@ export async function checkOpportunity(
   }
 
   const q_score = computeQScore({
-    schemaValid: validated.ok,
+    schemaOk: validated.ok,
     hasConsent: validated.hasConsent,
-    emailPresent: Boolean(bag.email || bag.Email),
-    phonePresent: Boolean(bag.phone || bag.Phone || bag.phone_number),
-    addressPresent: Boolean(bag.address1 || bag.Address1),
-    geoPresent: Boolean(bag.state || bag.zip || bag.State || bag.Zip),
-    sourcePresent: Boolean(bag.source),
-    tcpaTextPresent: Boolean(bag.tcpa_text || bag.tcpaText),
-    jornayaOrTrustedForm: Boolean(
-      bag.jornaya_lead_id || bag.trusted_form_url || bag.jornayaLeadId,
-    ),
+    attributes: bag,
   });
 
   // Demand estimate — non-PII only
