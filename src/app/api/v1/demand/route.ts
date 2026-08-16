@@ -4,21 +4,15 @@ import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findDemand } from "@/lib/services/demand";
-import { timingSafeEqualToken } from "@/lib/mcp-auth";
+import { isMcpRequest } from "@/lib/mcp-auth";
 
 /**
  * GET/POST /api/v1/demand
  * NON-DESTRUCTIVE. No PII. No distribution. No financial effect.
- * Auth: session OR Authorization: Bearer <QENTRAX_MCP_TOKEN>
+ * Auth: session | legacy QENTRAX_MCP_TOKEN | OAuth bridge headers
  */
 async function authorize(request: Request): Promise<"session" | "mcp" | null> {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const expected = (process.env.QENTRAX_MCP_TOKEN ?? "").trim();
-  if (token && expected && timingSafeEqualToken(token, expected)) return "mcp";
-
+  if (isMcpRequest(request)) return "mcp";
   const session = await requireAuthContext();
   return session ? "session" : null;
 }

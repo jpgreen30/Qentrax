@@ -15,7 +15,34 @@ export function isMcpToken(request: Request): boolean {
   return Boolean(token && expected && timingSafeEqualToken(token, expected));
 }
 
-/** Org binding for MCP — never taken from model-supplied args. */
+/**
+ * OAuth Phase 1.5 bridge: MCP sends x-qentrax-oauth-user-id + x-qentrax-mcp-bridge.
+ * Accept only when the bridge secret matches (timing-safe).
+ */
+export function isMcpOAuthBridge(request: Request): {
+  ok: boolean;
+  userId?: string;
+} {
+  const userId = request.headers.get("x-qentrax-oauth-user-id")?.trim() || "";
+  const bridgeSecret = request.headers.get("x-qentrax-mcp-bridge")?.trim() || "";
+  const expected = (
+    process.env.QENTRAX_MCP_BRIDGE_SECRET ??
+    process.env.MCP_JWT_SECRET ??
+    process.env.QENTRAX_MCP_TOKEN ??
+    ""
+  ).trim();
+  if (!userId || !expected || !timingSafeEqualToken(bridgeSecret, expected)) {
+    return { ok: false };
+  }
+  return { ok: true, userId };
+}
+
+/** True if request is either legacy shared-token or OAuth bridge. */
+export function isMcpRequest(request: Request): boolean {
+  return isMcpToken(request) || isMcpOAuthBridge(request).ok;
+}
+
+/** Org binding for legacy MCP shared-token — never taken from model-supplied args. */
 export function mcpBoundOrg(): {
   organizationId: string;
   role: "publisher" | "advertiser";
