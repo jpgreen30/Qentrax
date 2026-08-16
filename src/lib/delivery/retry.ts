@@ -1,14 +1,15 @@
 /**
  * Delivery retry worker — claim due attempts, POST buyer endpoints, schedule backoff.
+ * Production never simulates acceptance.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { allowSimulatedDelivery } from "@/lib/env";
 import { deliverToEndpoint, type DeliveryPayload } from "./http-delivery";
 
 export const DEFAULT_MAX_ATTEMPTS = 5;
 export const DEFAULT_SLA_MINUTES = 30;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 
-/** Map HTTP attempt status → deliveries.status enum */
 export function mapDeliveryStatus(
   status: "accepted" | "rejected" | "timeout" | "error",
 ): "accepted" | "rejected" | "timed_out" | "failed" {
@@ -18,21 +19,20 @@ export function mapDeliveryStatus(
   return "failed";
 }
 
-/** Transient failures that should retry */
 export function isRetryable(opts: {
   status: "accepted" | "rejected" | "timeout" | "error";
   http_status: number | null;
+  mode?: string;
 }): boolean {
   if (opts.status === "accepted") return false;
+  if (opts.mode === "config_error") return false; // terminal — fix config
   if (opts.status === "timeout" || opts.status === "error") return true;
   const code = opts.http_status ?? 0;
   if (code === 408 || code === 429) return true;
   if (code >= 500 && code <= 599) return true;
-  // other 4xx = terminal
   return false;
 }
 
-/** Exponential backoff: 30s, 2m, 8m, 32m, … capped at 1h */
 export function computeBackoffMs(attemptNumber: number): number {
   const base = 30_000;
   const ms = base * Math.pow(4, Math.max(0, attemptNumber - 1));
@@ -47,7 +47,7 @@ export type EnqueueDeliveryInput = {
   endpointUrl?: string | null;
   timeoutMs?: number;
   payload: DeliveryPayload;
-  /** First attempt simulate-on-missing (auction path default true) */
+  /** Only honored in non-production when explicitly true */
   simulateOnMissing?: boolean;
   maxAttempts?: number;
   slaMinutes?: number;
@@ -61,12 +61,9 @@ export type EnqueueDeliveryResult = {
   mode: string;
   willRetry: boolean;
   nextAttemptAt: string | null;
+  reason_code?: string;
 };
 
-/**
- * Run one delivery attempt and persist a deliveries row.
- * Schedules next_attempt_at when retryable and under max_attempts.
- */
 export async function enqueueAndAttemptDelivery(
   supabase: SupabaseClient,
   input: EnqueueDeliveryInput,
@@ -77,17 +74,25 @@ export async function enqueueAndAttemptDelivery(
   const attemptNumber = 1;
   const slaDue = new Date(Date.now() + slaMinutes * 60_000).toISOString();
 
+  // Production: never simulate
+  const simulate =
+    allowSimulatedDelivery() && input.simulateOnMissing === true;
+
   const result = await deliverToEndpoint({
     endpointUrl: input.endpointUrl,
     timeoutMs,
     payload: input.payload,
-    simulateOnMissing: input.simulateOnMissing !== false,
+    simulateOnMissing: simulate,
   });
 
   const dbStatus = mapDeliveryStatus(result.status);
   const retryable =
     result.mode === "http" &&
-    isRetryable({ status: result.status, http_status: result.http_status }) &&
+    isRetryable({
+      status: result.status,
+      http_status: result.http_status,
+      mode: result.mode,
+    }) &&
     attemptNumber < maxAttempts;
 
   const nextAttemptAt = retryable
@@ -103,7 +108,7 @@ export async function enqueueAndAttemptDelivery(
       transaction_id: input.transactionId ?? null,
       endpoint_url: result.endpoint_url ?? input.endpointUrl ?? null,
       attempt_number: attemptNumber,
-      status: result.mode === "simulated" && result.status === "accepted" ? "accepted" : dbStatus,
+      status: dbStatus,
       request_id: input.requestId ?? null,
       response_code: result.http_status,
       latency_ms: result.latency_ms,
@@ -111,9 +116,20 @@ export async function enqueueAndAttemptDelivery(
         body: result.response_body_redacted,
         mode: result.mode,
         error: result.error_message,
+        reason_code: result.reason_code,
       },
       request_snapshot_redacted: {
-        payload: input.payload,
+        // Do not store full PII attributes in delivery snapshots
+        payload: {
+          transaction_id: input.payload.transaction_id,
+          public_transaction_id: input.payload.public_transaction_id,
+          opportunity_id: input.payload.opportunity_id,
+          campaign_id: input.payload.campaign_id,
+          vertical: input.payload.vertical,
+          state: input.payload.state,
+          advertiser_price_cents: input.payload.advertiser_price_cents,
+          delivered_at: input.payload.delivered_at,
+        },
       },
       delivered_at: result.status === "accepted" ? new Date().toISOString() : null,
       next_attempt_at: nextAttemptAt,
@@ -136,6 +152,7 @@ export async function enqueueAndAttemptDelivery(
     mode: result.mode,
     willRetry: Boolean(nextAttemptAt),
     nextAttemptAt,
+    reason_code: result.reason_code,
   };
 }
 
@@ -162,9 +179,6 @@ export type RetryBatchResult = {
   errors: string[];
 };
 
-/**
- * Process up to `limit` due delivery retries (service-role client).
- */
 export async function processDueDeliveries(
   supabase: SupabaseClient,
   opts?: { limit?: number },
@@ -202,11 +216,7 @@ export async function processDueDeliveries(
 
   for (const row of rows) {
     try {
-      // Clear claim so concurrent workers skip (best-effort)
-      await supabase
-        .from("deliveries")
-        .update({ next_attempt_at: null })
-        .eq("id", row.id);
+      await supabase.from("deliveries").update({ next_attempt_at: null }).eq("id", row.id);
 
       const slaBreached = row.sla_due_at ? new Date(row.sla_due_at).getTime() < Date.now() : false;
       if (slaBreached) out.slaBreached += 1;
@@ -248,7 +258,11 @@ export async function processDueDeliveries(
       const retryable =
         !slaBreached &&
         underMax &&
-        isRetryable({ status: result.status, http_status: result.http_status });
+        isRetryable({
+          status: result.status,
+          http_status: result.http_status,
+          mode: result.mode,
+        });
 
       const nextAttemptAt = retryable
         ? new Date(Date.now() + computeBackoffMs(nextAttempt)).toISOString()
@@ -270,6 +284,7 @@ export async function processDueDeliveries(
           error: result.error_message,
           parent_delivery_id: row.id,
           sla_breached: slaBreached,
+          reason_code: result.reason_code,
         },
         request_snapshot_redacted: { payload },
         delivered_at: result.status === "accepted" ? new Date().toISOString() : null,
