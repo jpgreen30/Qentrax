@@ -32,7 +32,7 @@ function form(body: string) {
   return o;
 }
 function esc(s: string) {
-  return s.replace(/&/g,"&").replace(/</g,"<").replace(/>/g,">").replace(/"/g,""");
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 function loginHtml(p: Record<string, string>, err?: string) {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Qentrax Sign in</title>
