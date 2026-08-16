@@ -1,14 +1,28 @@
 import WorkspaceShell from "@/components/WorkspaceShell";
+import { isStripeConfigured } from "@/lib/stripe/client";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
-import { postTestFunding } from "../actions";
+import { postTestFunding, startStripeFunding } from "../actions";
 
 export default async function AdvertiserBilling({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string; funded?: string }>;
+  searchParams: Promise<{
+    org?: string;
+    funded?: string;
+    cancelled?: string;
+    error?: string;
+    session_id?: string;
+  }>;
 }) {
   const params = await searchParams;
   const { supabase, org } = await requireOrg(params.org, "advertiser");
+  const stripeReady = isStripeConfigured();
+
+  const { data: orgFull } = await supabase
+    .from("organizations")
+    .select("stripe_customer_id")
+    .eq("id", org.id)
+    .maybeSingle();
 
   const { data: balance } = await supabase.rpc("advertiser_available_balance_cents", {
     p_organization_id: org.id,
@@ -31,6 +45,15 @@ export default async function AdvertiserBilling({
           .limit(40)
       : { data: [] as { id: string; direction: string; amount_cents: number; occurred_at: string }[] };
 
+  const notice =
+    params.error
+      ? params.error
+      : params.funded
+        ? "Funding received — balance will update after Stripe webhook settles."
+        : params.cancelled
+          ? "Checkout cancelled — no charge."
+          : null;
+
   return (
     <WorkspaceShell
       role="advertiser"
@@ -41,9 +64,16 @@ export default async function AdvertiserBilling({
       active="billing"
       eyebrow="DEMAND COMMAND"
       title="Billing & funding"
-      subtitle="Media balance, charges, and test funding. Stripe live webhooks come next."
+      subtitle="Media balance via Stripe Checkout. Webhook posts a balanced ledger journal."
     >
-      {params.funded && <p className="dashNotice">Test funding posted to ledger.</p>}
+      {notice && (
+        <p
+          className="dashNotice"
+          style={params.error ? { borderColor: "#5a2a2a", color: "#ff8a8a" } : undefined}
+        >
+          {notice}
+        </p>
+      )}
 
       <div className="dashStats">
         <article>
@@ -56,11 +86,11 @@ export default async function AdvertiserBilling({
         </article>
         <article>
           <header>
-            <span>ACCOUNTS</span>
+            <span>STRIPE CUSTOMER</span>
             <i>$</i>
           </header>
-          <strong>{(accounts ?? []).length}</strong>
-          <small>LEDGER</small>
+          <strong>{orgFull?.stripe_customer_id ? "LINKED" : "—"}</strong>
+          <small>{orgFull?.stripe_customer_id?.slice(0, 14) ?? "NOT YET"}</small>
         </article>
         <article>
           <header>
@@ -75,8 +105,8 @@ export default async function AdvertiserBilling({
             <span>MODE</span>
             <i>▦</i>
           </header>
-          <strong>TEST</strong>
-          <small>STRIPE LATER</small>
+          <strong>{stripeReady ? "LIVE" : "TEST"}</strong>
+          <small>{stripeReady ? "STRIPE READY" : "KEYS MISSING"}</small>
         </article>
       </div>
 
@@ -104,30 +134,54 @@ export default async function AdvertiserBilling({
             </div>
           )}
         </article>
+
         <article className="quick">
           <header>
             <span>FUND ACCOUNT</span>
           </header>
+
+          {stripeReady ? (
+            <>
+              <form action={startStripeFunding} className="workspace-actions">
+                <input type="hidden" name="organization_id" value={org.id} />
+                <input type="hidden" name="amount_cents" value={50000} />
+                <button className="quickRow" type="submit">
+                  <i>$</i>
+                  <span>
+                    <b>Fund $500 via Stripe</b>
+                    <small>Checkout · min opening balance</small>
+                  </span>
+                  <em>→</em>
+                </button>
+              </form>
+              <form action={startStripeFunding} className="workspace-actions">
+                <input type="hidden" name="organization_id" value={org.id} />
+                <input type="hidden" name="amount_cents" value={200000} />
+                <button className="quickRow" type="submit">
+                  <i>$</i>
+                  <span>
+                    <b>Fund $2,000 via Stripe</b>
+                    <small>Larger media balance</small>
+                  </span>
+                  <em>→</em>
+                </button>
+              </form>
+            </>
+          ) : (
+            <p style={{ padding: "12px 16px", color: "#718287", fontSize: 13 }}>
+              Set <code>STRIPE_SECRET_KEY</code> + <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> to
+              enable live Checkout.
+            </p>
+          )}
+
           <form action={postTestFunding} className="workspace-actions">
             <input type="hidden" name="organization_id" value={org.id} />
             <input type="hidden" name="amount_cents" value={50000} />
             <button className="quickRow" type="submit">
-              <i>$</i>
+              <i>◎</i>
               <span>
                 <b>Post $500 test funding</b>
-                <small>Simulated Stripe top-up</small>
-              </span>
-              <em>→</em>
-            </button>
-          </form>
-          <form action={postTestFunding} className="workspace-actions">
-            <input type="hidden" name="organization_id" value={org.id} />
-            <input type="hidden" name="amount_cents" value={200000} />
-            <button className="quickRow" type="submit">
-              <i>$</i>
-              <span>
-                <b>Post $2,000 test funding</b>
-                <small>Larger test balance</small>
+                <small>Ledger only · no card charge</small>
               </span>
               <em>→</em>
             </button>

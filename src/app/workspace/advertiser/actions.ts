@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/lib/auth-context";
+import { isStripeConfigured } from "@/lib/stripe/client";
+import { createFundingCheckoutSession, ensureStripeCustomer } from "@/lib/stripe/funding";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createCampaign(formData: FormData) {
@@ -90,8 +92,65 @@ export async function postTestFunding(formData: FormData) {
   });
 
   redirect(
-    `/workspace/advertiser?org=${organizationId}${error ? "&fund_error=1" : "&funded=1"}`,
+    `/workspace/advertiser/billing?org=${organizationId}${error ? "&fund_error=1" : "&funded=1"}`,
   );
+}
+
+/** Start Stripe Checkout for real advertiser funding. */
+export async function startStripeFunding(formData: FormData) {
+  const auth = await requireAuthContext();
+  if (!auth) redirect("/sign-in");
+
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const amountCents = Number(formData.get("amount_cents") ?? 50000);
+  if (!organizationId) redirect("/workspace");
+
+  if (!isStripeConfigured()) {
+    redirect(
+      `/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent("Stripe keys not configured")}`,
+    );
+  }
+
+  if (!Number.isFinite(amountCents) || amountCents < 50000) {
+    redirect(
+      `/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent("Minimum funding is $500")}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("id, legal_name, type, stripe_customer_id")
+    .eq("id", organizationId)
+    .maybeSingle();
+
+  if (!org || org.type !== "advertiser") {
+    redirect(`/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`);
+  }
+
+  try {
+    const customerId = await ensureStripeCustomer(
+      supabase,
+      {
+        id: org.id,
+        legal_name: org.legal_name,
+        stripe_customer_id: org.stripe_customer_id,
+      },
+      auth.email ?? null,
+    );
+
+    const session = await createFundingCheckoutSession({
+      organizationId: org.id,
+      customerId,
+      amountCents,
+      orgName: org.legal_name,
+    });
+
+    redirect(session.url);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Stripe funding failed";
+    redirect(`/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent(msg)}`);
+  }
 }
 
 export async function activateCampaign(formData: FormData) {
