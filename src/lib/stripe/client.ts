@@ -10,7 +10,8 @@ export function getStripe(): Stripe {
     throw new Error("STRIPE_SECRET_KEY is not configured");
   }
   _stripe = new Stripe(key, {
-    apiVersion: "2025-07-30.basil",
+    // Pin to a stable recent API version; Stripe SDK accepts string
+    apiVersion: "2025-06-30.basil" as Stripe.LatestApiVersion,
     typescript: true,
   });
   return _stripe;

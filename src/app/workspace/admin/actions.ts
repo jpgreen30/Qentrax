@@ -9,6 +9,8 @@ import {
   type PayoutCadence,
 } from "@/lib/payouts/schedule";
 import { requestId } from "@/lib/request-id";
+import { isStripeConfigured } from "@/lib/stripe/client";
+import { transferToPublisher } from "@/lib/stripe/connect";
 import { createClient } from "@/lib/supabase/server";
 
 async function requireAdminActor() {
@@ -283,6 +285,7 @@ export async function releasePayoutBatch(formData: FormData) {
     redirect(`/workspace/admin/finance?error=${encodeURIComponent("Batch must be approved before release")}`);
   }
 
+  // Mark released first (internal ledger / status)
   await supabase
     .from("payout_batches")
     .update({
@@ -290,10 +293,95 @@ export async function releasePayoutBatch(formData: FormData) {
       released_by: auth.userId,
       released_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      transfer_status: isStripeConfigured() ? "pending" : "none",
+      stripe_transfer_group: `payout_${batchId}`,
     })
     .eq("id", batchId);
 
   await supabase.from("payout_items").update({ status: "paid" }).eq("batch_id", batchId);
+
+  // Attempt Stripe Transfers when Connect is configured
+  let transferSummary: {
+    paid: number;
+    skipped: number;
+    failed: number;
+    totalTransferred: number;
+  } = { paid: 0, skipped: 0, failed: 0, totalTransferred: 0 };
+
+  if (isStripeConfigured()) {
+    const { data: items } = await supabase
+      .from("payout_items")
+      .select("id, publisher_org_id, amount_cents")
+      .eq("batch_id", batchId);
+
+    // Aggregate by publisher
+    const byPub = new Map<string, { amount: number; itemIds: string[] }>();
+    for (const it of items ?? []) {
+      const row = byPub.get(it.publisher_org_id) ?? { amount: 0, itemIds: [] };
+      row.amount += it.amount_cents ?? 0;
+      row.itemIds.push(it.id);
+      byPub.set(it.publisher_org_id, row);
+    }
+
+    const pubIds = Array.from(byPub.keys());
+    const { data: pubs } = await supabase
+      .from("organizations")
+      .select("id, stripe_connect_account_id, stripe_payouts_enabled, legal_name")
+      .in("id", pubIds);
+
+    const pubMap = new Map((pubs ?? []).map((p) => [p.id, p]));
+
+    for (const [pubId, agg] of byPub.entries()) {
+      const pub = pubMap.get(pubId);
+      if (!pub?.stripe_connect_account_id || !pub.stripe_payouts_enabled || agg.amount <= 0) {
+        transferSummary.skipped += 1;
+        await supabase
+          .from("payout_items")
+          .update({ transfer_status: "skipped" })
+          .in("id", agg.itemIds);
+        continue;
+      }
+
+      try {
+        const transfer = await transferToPublisher({
+          connectAccountId: pub.stripe_connect_account_id,
+          amountCents: agg.amount,
+          transferGroup: `payout_${batchId}`,
+          metadata: {
+            qentrax_batch_id: batchId,
+            qentrax_publisher_org_id: pubId,
+            publisher_name: pub.legal_name ?? "",
+          },
+        });
+        transferSummary.paid += 1;
+        transferSummary.totalTransferred += agg.amount;
+        await supabase
+          .from("payout_items")
+          .update({ transfer_status: "paid", stripe_transfer_id: transfer.id })
+          .in("id", agg.itemIds);
+      } catch {
+        transferSummary.failed += 1;
+        await supabase
+          .from("payout_items")
+          .update({ transfer_status: "failed" })
+          .in("id", agg.itemIds);
+      }
+    }
+
+    const transferStatus =
+      transferSummary.failed > 0 && transferSummary.paid > 0
+        ? "partial"
+        : transferSummary.failed > 0
+          ? "failed"
+          : transferSummary.paid > 0
+            ? "complete"
+            : "none";
+
+    await supabase
+      .from("payout_batches")
+      .update({ transfer_status: transferStatus, updated_at: new Date().toISOString() })
+      .eq("id", batchId);
+  }
 
   await supabase.from("audit_events").insert({
     actor_user_id: auth.userId,
@@ -303,7 +391,11 @@ export async function releasePayoutBatch(formData: FormData) {
     resource_id: batchId,
     reason: "admin_finance",
     before_redacted: { status: "approved" },
-    after_redacted: { status: "released", total_cents: batch.total_cents },
+    after_redacted: {
+      status: "released",
+      total_cents: batch.total_cents,
+      stripe_transfers: transferSummary,
+    },
     request_id: rid,
   });
 
