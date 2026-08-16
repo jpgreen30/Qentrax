@@ -5,6 +5,7 @@ import { requireAuthContext } from "@/lib/auth-context";
 import { isStripeConfigured } from "@/lib/stripe/client";
 import { startPublisherConnect } from "@/lib/stripe/connect";
 import { createClient } from "@/lib/supabase/server";
+import { generatePublicTransactionId } from "@/lib/transaction-id";
 import {
   flattenIntakePayload,
   loadFieldSchemas,
@@ -34,7 +35,6 @@ export async function createSource(formData: FormData) {
   redirect(`/workspace/publisher?org=${organizationId}`);
 }
 
-/** Demo lead uses auto_insurance standard fields (valid schema). */
 const DEMO_VERTICAL = "auto_insurance";
 const DEMO_ATTRIBUTES = {
   zip: "90210",
@@ -80,7 +80,7 @@ export async function submitTestOpportunity(formData: FormData) {
   }
 
   const externalId = `test-${Date.now()}`;
-  const publicTxn = `QL-${Math.floor(10000 + Math.random() * 90000)}`;
+  const publicTxn = generatePublicTransactionId();
   const { data: opp, error } = await supabase
     .from("opportunities")
     .insert({
@@ -117,7 +117,6 @@ export async function submitTestOpportunity(formData: FormData) {
   );
 }
 
-/** Start Stripe Express onboarding for publisher payouts. */
 export async function startConnectOnboarding(formData: FormData) {
   const auth = await requireAuthContext();
   if (!auth) redirect("/sign-in");
@@ -139,7 +138,9 @@ export async function startConnectOnboarding(formData: FormData) {
     .maybeSingle();
 
   if (!org || org.type !== "publisher") {
-    redirect(`/workspace/publisher/earnings?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`);
+    redirect(
+      `/workspace/publisher/earnings?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`,
+    );
   }
 
   let onboardUrl: string;

@@ -1,15 +1,15 @@
 import { apiError, apiOk } from "@/lib/api";
 import { requireAuthContext } from "@/lib/auth-context";
 import { PxClient } from "@/lib/integrations/px";
-import { toPxPingBody, PX_VERTICAL_FALLBACK } from "@/lib/integrations/px/mapper";
+import { toPxPingBody, resolvePxVerticalMap } from "@/lib/integrations/px/mapper";
 import type { QentraxOpportunityPayload } from "@/lib/integrations/px/types";
 import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/v1/integrations/px/ping
- * Dry-run or live PX ping using org integration credentials.
- * Body: { organization_id, opportunity, dry_run?: boolean }
+ * PX credentials come ONLY from server env (PX_API_TOKEN / PX_BASE_URL).
+ * Request body must NOT supply api_token or base_url.
  */
 export async function POST(request: Request) {
   const id = requestId(request.headers.get("x-request-id"));
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     organization_id?: string;
     opportunity?: QentraxOpportunityPayload;
     dry_run?: boolean;
+    // Intentionally ignore any client-supplied credentials
     api_token?: string;
     base_url?: string;
   };
@@ -38,50 +39,66 @@ export async function POST(request: Request) {
     );
   }
 
+  // Reject client-supplied credentials (SSRF / credential injection)
+  if (body.api_token != null || body.base_url != null) {
+    return apiError(
+      "VALIDATION_ERROR",
+      "api_token and base_url must not be supplied by clients. Use server configuration.",
+      id,
+      400,
+      { reason_code: "AUTH_FORBIDDEN" },
+    );
+  }
+
   const supabase = await createClient();
   const verticalCode = body.opportunity.verticalCode;
   const productCode = body.opportunity.productCode ?? null;
 
-  let mapRow = null as null | {
-    px_vertical: string;
-    resource_type: "lead" | "call";
-    ping_path: string;
-    post_path: string;
-    field_map_json: Record<string, string>;
-  };
-
   const { data: maps } = await supabase
     .from("px_vertical_maps")
-    .select("px_vertical, resource_type, ping_path, post_path, field_map_json")
+    .select(
+      "px_vertical, resource_type, ping_path, post_path, field_map_json, qentrax_vertical_code, qentrax_product_code",
+    )
     .eq("qentrax_vertical_code", verticalCode)
     .eq("active", true);
 
-  if (maps?.length) {
-    mapRow =
-      (productCode
-        ? maps.find(() => true) // prefer first; product filter optional
-        : maps[0]) ?? maps[0];
-    // Prefer product match when present in DB via second query pattern — use first matching product
-    const { data: productMap } = productCode
-      ? await supabase
-          .from("px_vertical_maps")
-          .select("px_vertical, resource_type, ping_path, post_path, field_map_json")
-          .eq("qentrax_vertical_code", verticalCode)
-          .eq("qentrax_product_code", productCode)
-          .eq("active", true)
-          .maybeSingle()
-      : { data: null };
-    if (productMap) mapRow = productMap as typeof mapRow;
-  }
+  const mapRow = resolvePxVerticalMap(
+    verticalCode,
+    productCode,
+    (maps as Array<
+      {
+        px_vertical: string;
+        resource_type: "lead" | "call";
+        ping_path: string;
+        post_path: string;
+        field_map_json: Record<string, string>;
+        qentrax_vertical_code?: string;
+        qentrax_product_code?: string | null;
+      }
+    >) ?? undefined,
+  );
 
   if (!mapRow) {
-    const fb = PX_VERTICAL_FALLBACK[verticalCode] ?? PX_VERTICAL_FALLBACK.auto;
-    mapRow = fb;
+    return apiError(
+      "VALIDATION_ERROR",
+      `No PX mapping for vertical '${verticalCode}'${productCode ? ` / product '${productCode}'` : ""}.`,
+      id,
+      400,
+      { reason_code: "PX_MAPPING_NOT_FOUND" },
+    );
   }
 
-  const { path, body: pxBody } = toPxPingBody(body.opportunity, mapRow, body.api_token ?? "DRY_RUN");
+  const apiToken = process.env.PX_API_TOKEN?.trim();
+  const baseUrl = process.env.PX_BASE_URL?.trim();
 
-  if (body.dry_run !== false && !body.api_token) {
+  const { path, body: pxBody } = toPxPingBody(
+    body.opportunity,
+    mapRow,
+    apiToken || "DRY_RUN",
+  );
+
+  // Default dry_run when no server credentials
+  if (!apiToken || body.dry_run === true) {
     return apiOk(
       {
         dry_run: true,
@@ -93,13 +110,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!body.api_token) {
-    return apiError("VALIDATION_ERROR", "api_token required for live ping.", id, 400);
-  }
-
   const client = new PxClient({
-    apiToken: body.api_token,
-    baseUrl: body.base_url,
+    apiToken,
+    baseUrl: baseUrl || undefined,
   });
   const result = await client.ping(path, pxBody);
 
@@ -107,7 +120,14 @@ export async function POST(request: Request) {
     {
       dry_run: false,
       path,
-      result,
+      result: {
+        ok: result.ok,
+        transactionId: result.transactionId,
+        payoutCents: result.payoutCents,
+        message: result.message,
+        environment: result.environment,
+        // omit raw to reduce PII/secret leakage in API responses
+      },
     },
     id,
   );
