@@ -1,155 +1,112 @@
-# Qentrax MCP — Phase 1 (Private Prototype)
+# Qentrax MCP — Phase 1.5 (OAuth)
 
 ## Architecture
 
 ```
-ChatGPT (Developer mode / remote MCP)
-        ↓  Authorization: Bearer <QENTRAX_MCP_TOKEN>
-Qentrax MCP server  (mcp/)   ← thin adapter only
-        ↓  same token to app APIs
-Qentrax Application API
-  /api/v1/demand
-  /api/v1/requirements
-  /api/v1/opportunities/preflight
-  /api/v1/performance
-        ↓
-Qentrax services (findDemand, getRequirements, checkOpportunity, getPerformance)
-        ↓
-Supabase (RLS + org binding)
+ChatGPT (Developer mode / OAuth)
+        ↓  Authorization Code + PKCE (S256)
+Qentrax MCP (https://qentrax-mcp.onrender.com)
+  /.well-known/oauth-protected-resource   (RFC 9728)
+  /.well-known/oauth-authorization-server (RFC 8414)
+  /oauth/authorize  /oauth/token  /oauth/register
+        ↓  access token (JWT, aud=/mcp)
+  POST /mcp  → tools
+        ↓  user id bridge
+Qentrax Application API + Supabase Auth memberships
 ```
 
-**Phase 1 does not submit or distribute consumer leads.**
+**Identity model:** ChatGPT OAuth login → Qentrax Supabase user → `organization_members` → organization/role.
 
-## Tools
+`QENTRAX_MCP_ORG_ID` is **not** required for OAuth users. Organization access is derived from memberships.
 
-| Tool | Side effects | PII | Auth |
-|---|---|---|---|
-| `find_demand` | None | None | MCP token |
-| `get_requirements` | None | None | MCP token |
-| `check_opportunity` | None (preflight only) | Prefer non-PII | MCP token |
-| `get_performance` | Read-only | No new consumer PII | MCP token → **bound org only** |
+Phase 1 tools remain read/preflight only — no lead submit.
 
-### find_demand
+## Tools (unchanged)
 
-- **Inputs:** `vertical` (required), `state?`, `product?`, `traffic_source?`, `limit?`
-- **Output:** demand count + concise campaign/bid summary (USD), or `NO_DEMAND`
-- **Does not:** POST to buyers, create transactions, expose credentials
-
-### get_requirements
-
-- **Inputs:** `vertical`, `product?`
-- **Output:** required/optional fields, consent, geography from `vertical_field_schemas`
-
-### check_opportunity
-
-- **Inputs:** `vertical`, `state?`, `attributes?`, `consent?`, `require_post?`
-- **Output:** eligible/status, missing_fields, q_score, potential_demand_count
-- **Does not:** insert opportunity, run auction, deliver, create economics
-
-### get_performance
-
-- **Inputs:** `from?`, `to?`, `vertical?`, `source_id?`
-- **Org:** always `QENTRAX_MCP_ORG_ID` — model cannot pass another tenant
-- **Output:** submissions, billable, acceptance_rate, revenue_usd, rejection_reasons
-
-## Authentication (prototype)
-
-| Variable | Purpose |
-|---|---|
-| `QENTRAX_MCP_TOKEN` | Shared secret (≥16 chars). Sent as `Authorization: Bearer …` |
-| `QENTRAX_MCP_ORG_ID` | Organization UUID bound to this token |
-| `QENTRAX_MCP_ROLE` | `publisher` or `advertiser` |
-| `QENTRAX_API_BASE_URL` | Base URL of the Qentrax Next app |
-
-**Before directory submission:** replace shared token with OAuth account linking  
-`external subject → public.users → organization_members → permissions`.  
-Do not make ChatGPT identity the authorization model.
-
-Service-role is used only after token validation for catalog reads; performance always filters by bound org in application code.
+| Tool | Side effects | Auth |
+|---|---|---|
+| `find_demand` | None | OAuth access token |
+| `get_requirements` | None | OAuth access token |
+| `check_opportunity` | None (preflight) | OAuth access token |
+| `get_performance` | None | OAuth access token + membership resolution |
 
 ## Endpoints
 
-| Service | URL |
-|---|---|
-| MCP protocol | `http://<host>:3100/mcp` (local) or `https://<deployed-mcp>/mcp` |
-| Health | `http://<host>:3100/health` |
-| App APIs | `QENTRAX_API_BASE_URL/api/v1/*` |
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/.well-known/oauth-protected-resource` | RFC 9728 PRM |
+| `GET` | `/.well-known/oauth-authorization-server` | RFC 8414 AS metadata |
+| `GET` | `/.well-known/openid-configuration` | OIDC discovery (same AS) |
+| `GET /oauth/authorize` | Login form + authorize (PKCE) |
+| `POST /oauth/authorize` | Email/password via Supabase Auth → auth code |
+| `POST /oauth/token` | `authorization_code` + `refresh_token` |
+| `POST /oauth/register` | Dynamic client registration (RFC 7591) |
+| `GET /oauth/userinfo` | `sub`, `email` |
+| `POST /mcp` | MCP Streamable HTTP (Bearer access token required) |
 
-Transport: **Streamable HTTP** with JSON response mode (stateless), compatible with remote MCP clients including ChatGPT Developer mode.
+### Discovery (production)
 
-## Local development
+- Resource: `https://qentrax-mcp.onrender.com/mcp`
+- PRM: `https://qentrax-mcp.onrender.com/.well-known/oauth-protected-resource`
+- AS: `https://qentrax-mcp.onrender.com/.well-known/oauth-authorization-server`
+- Authorize: `https://qentrax-mcp.onrender.com/oauth/authorize`
+- Token: `https://qentrax-mcp.onrender.com/oauth/token`
+- Register: `https://qentrax-mcp.onrender.com/oauth/register`
 
-```bash
-# Terminal 1 — Qentrax app
-cd qentrax-latest
-# set NEXT_PUBLIC_SUPABASE_*, SUPABASE_SERVICE_ROLE_KEY, QENTRAX_MCP_TOKEN, QENTRAX_MCP_ORG_ID
-npm run dev
+### Scopes
 
-# Terminal 2 — MCP server
-cd mcp
-cp .env.example .env   # fill values; same QENTRAX_MCP_TOKEN as app
-npm install
-npm run dev
+`openid`, `email`, `profile`, `offline_access`,  
+`qentrax:demand:read`, `qentrax:requirements:read`,  
+`qentrax:opportunity:preflight`, `qentrax:performance:read`
+
+### Tokens
+
+- **Access token:** HS256 JWT, `typ=access`, `aud=https://qentrax-mcp.onrender.com/mcp`, TTL default 3600s
+- **Refresh token:** HS256 JWT, `typ=refresh`, TTL default 30 days; `/oauth/token` grant `refresh_token` rotates tokens
+- **PKCE:** S256 required
+
+### get_performance org resolution
+
+1. List active `organization_members` for the signed-in user  
+2. If `organization_id` is passed → must be a membership (else 403)  
+3. If omitted and exactly one membership (or one publisher) → use it  
+4. If multiple → `ORG_AMBIGUOUS` (model must pass a membership id, never invent)
+
+## ChatGPT connection (OAuth)
+
+1. ChatGPT → **Settings → Apps / Developer mode** (enable)  
+2. **Create app / connector**  
+   - MCP Server URL: `https://qentrax-mcp.onrender.com/mcp`  
+   - Authentication: **OAuth**  
+3. ChatGPT fetches `/.well-known/oauth-protected-resource` then AS metadata  
+4. Complete authorization (Qentrax email/password on the authorize page)  
+5. **Scan tools** → expect four tools  
+6. Use evaluation prompts from Phase 1 docs
+
+## Render environment variables
+
+```
+MCP_PUBLIC_URL=https://qentrax-mcp.onrender.com
+MCP_JWT_SECRET=<long random ≥16>
+QENTRAX_MCP_BRIDGE_SECRET=<long random ≥16>
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<anon/publishable>
+# or SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=<service role>   # optional; catalog reads via app API
+QENTRAX_API_BASE_URL=https://<your-vercel-app>
+PORT=<set by Render>
 ```
 
-## Remote deployment
+## Vercel (Qentrax app) environment variables
 
-1. Deploy Qentrax Next.js app (Vercel) with env vars including `QENTRAX_MCP_TOKEN` and `QENTRAX_MCP_ORG_ID`.
-2. Deploy `mcp/` as a separate Node service (Fly, Railway, Render, or long-running Node on Vercel serverless-friendly host) with:
-   - `QENTRAX_MCP_TOKEN` (same)
-   - `QENTRAX_MCP_ORG_ID`
-   - `QENTRAX_API_BASE_URL=https://your-qentrax-app.vercel.app`
-3. Public URL must terminate TLS: `https://mcp.example.com/mcp`
+```
+QENTRAX_MCP_BRIDGE_SECRET=<same as Render>
+```
 
-## ChatGPT private testing (Developer mode)
+(The bridge secret lets the MCP service identify the OAuth user to the capability routes for membership checks without using the service-role key as the user identity.)
 
-Per current OpenAI Help / Developer mode docs:
+## Manual Supabase configuration
 
-1. ChatGPT **Business / Enterprise / Edu** (or plan where Developer mode is enabled).
-2. Open **Settings → Apps / Developer mode** (enable Developer mode).
-3. **Create a custom MCP connector / app**:
-   - Server URL: `https://<your-mcp-host>/mcp`
-   - Authentication: custom header or Bearer token = `QENTRAX_MCP_TOKEN`
-   - Label: `qentrax`
-4. **Scan tools** — expect four tools listed.
-5. In a new chat, enable the connector and try evaluation prompts below.
-
-If OAuth is required by the UI and shared Bearer is not offered, use OpenAI’s documented custom header field for the token, or temporarily put the token in the server URL query only for private tests (not recommended for anything beyond a short sandbox).
-
-### Evaluation prompts
-
-| Prompt | Expected tool |
-|---|---|
-| “I generate solar leads in Arizona. Do you have buyers?” | `find_demand` |
-| “What fields do you require for auto insurance?” | `get_requirements` |
-| “Can you check whether this lead meets Qentrax's requirements?” (with non-PII attrs) | `check_opportunity` |
-| “How have my home-services leads performed this month?” | `get_performance` |
-| “Explain how solar panels work.” | **No Qentrax tool** |
-| “Sell this lead to the highest bidder.” | **No submit** — model should say Phase 1 cannot submit |
-
-## Privacy / data handling
-
-- MCP accepts **structured tool arguments only** — not full chat history.
-- `find_demand` / `get_requirements` / `get_performance` need no consumer contact PII.
-- `check_opportunity` prefers non-PII attributes; preflight strips contact when `require_post` is false.
-- Outputs omit provider credentials, tokens, and raw DB errors.
-
-## Known limitations (directory gaps)
-
-1. Shared-token auth, not OAuth account linking  
-2. No `submit_opportunity` / `get_bid` (intentional Phase 1)  
-3. Single org bound per token (no multi-tenant MCP user switch)  
-4. Service-role catalog path after token check — replace with user JWT  
-5. No rate limiting beyond platform defaults  
-6. No MCP Apps UI resources  
-7. Not submitted to any public directory  
-
-## Security checklist
-
-- [x] Unauthenticated MCP requests rejected  
-- [x] Performance org not model-supplied under MCP token  
-- [x] No submit/distribute tools registered  
-- [x] Token not committed (env only)  
-- [ ] Production OAuth linking  
-- [ ] Per-user org resolution from membership tables  
-- [ ] Abuse rate limits  
+- Ensure email/password Auth is enabled.
+- `organization_members` table must have rows linking users to orgs with `status = 'active'`.
+- No special OAuth client registration in Supabase is required; the MCP service is its own authorization server and uses Supabase only for credential verification + membership reads.
