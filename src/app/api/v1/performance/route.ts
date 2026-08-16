@@ -6,6 +6,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPerformance } from "@/lib/services/performance";
 import { isMcpToken, isMcpOAuthBridge, mcpBoundOrg } from "@/lib/mcp-auth";
 
+type MembershipRow = {
+  organization_id: string;
+  role: string;
+  status: string;
+  organizations: { type?: string } | { type?: string }[] | null;
+};
+
+function orgType(r: MembershipRow): string | undefined {
+  const o = r.organizations;
+  const one = Array.isArray(o) ? o[0] : o;
+  return one?.type;
+}
+
 /**
  * GET/POST /api/v1/performance
  * Auth: session | MCP shared token (legacy) | MCP OAuth bridge headers
@@ -41,7 +54,7 @@ async function handlePerformance(
       .eq("user_id", bridge.userId)
       .eq("status", "active");
 
-    const rows = memberships ?? [];
+    const rows = (memberships ?? []) as MembershipRow[];
     if (rows.length === 0) {
       return apiError(
         "FORBIDDEN",
@@ -61,12 +74,9 @@ async function handlePerformance(
           403,
         );
       }
-      const org = m.organizations as { type?: string } | null;
-      role = org?.type === "advertiser" ? "advertiser" : "publisher";
+      role = orgType(m) === "advertiser" ? "advertiser" : "publisher";
     } else {
-      const publishers = rows.filter(
-        (r) => (r.organizations as { type?: string } | null)?.type === "publisher",
-      );
+      const publishers = rows.filter((r) => orgType(r) === "publisher");
       const pool = publishers.length > 0 ? publishers : rows;
       if (pool.length !== 1) {
         return apiError(
@@ -76,9 +86,8 @@ async function handlePerformance(
           400,
         );
       }
-      organization_id = pool[0].organization_id as string;
-      const org = pool[0].organizations as { type?: string } | null;
-      role = org?.type === "advertiser" ? "advertiser" : "publisher";
+      organization_id = pool[0].organization_id;
+      role = orgType(pool[0]) === "advertiser" ? "advertiser" : "publisher";
     }
   } else if (mcpLegacy) {
     const bound = mcpBoundOrg();
