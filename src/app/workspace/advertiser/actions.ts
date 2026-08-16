@@ -128,6 +128,8 @@ export async function startStripeFunding(formData: FormData) {
     redirect(`/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`);
   }
 
+  // IMPORTANT: redirect() throws NEXT_REDIRECT — must not be inside try/catch
+  let checkoutUrl: string;
   try {
     const customerId = await ensureStripeCustomer(
       supabase,
@@ -145,12 +147,13 @@ export async function startStripeFunding(formData: FormData) {
       amountCents,
       orgName: org.legal_name,
     });
-
-    redirect(session.url);
+    checkoutUrl = session.url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Stripe funding failed";
     redirect(`/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent(msg)}`);
   }
+
+  redirect(checkoutUrl);
 }
 
 export async function activateCampaign(formData: FormData) {

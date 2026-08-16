@@ -65,6 +65,8 @@ export async function startConnectOnboarding(formData: FormData) {
     redirect(`/workspace/publisher/earnings?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`);
   }
 
+  // redirect() throws NEXT_REDIRECT — keep it outside try/catch
+  let onboardUrl: string;
   try {
     const { url } = await startPublisherConnect({
       supabase,
@@ -75,9 +77,11 @@ export async function startConnectOnboarding(formData: FormData) {
       },
       email: auth.email ?? null,
     });
-    redirect(url);
+    onboardUrl = url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Connect onboarding failed";
     redirect(`/workspace/publisher/earnings?org=${organizationId}&error=${encodeURIComponent(msg)}`);
   }
+
+  redirect(onboardUrl);
 }
