@@ -4,15 +4,16 @@ import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkOpportunity } from "@/lib/services/opportunity-preflight";
-import { isMcpToken } from "@/lib/mcp-auth";
+import { isMcpRequest } from "@/lib/mcp-auth";
 
 /**
  * POST /api/v1/opportunities/preflight
  * NON-DESTRUCTIVE — no insert, auction, delivery, or economics.
+ * Auth: session | legacy MCP token | OAuth bridge headers
  */
 export async function POST(request: Request) {
   const id = requestId(request.headers.get("x-request-id"));
-  const mcp = isMcpToken(request);
+  const mcp = isMcpRequest(request);
   if (!mcp) {
     const auth = await requireAuthContext();
     if (!auth) return apiError("AUTH_REQUIRED", "Authentication is required.", id, 401);
