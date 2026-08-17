@@ -1,9 +1,11 @@
 /**
  * OAuth 2.1 AS for Qentrax MCP — authorization_code + PKCE + refresh.
+ * Issuer / resource always derive from MCP_PUBLIC_URL via publicBaseUrl().
+ * Supabase is used only for credential verification + membership reads.
  */
 import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { mcpResourceUrl, SCOPES } from "../lib/config.js";
+import { mcpResourceUrl, publicBaseUrl, SCOPES } from "../lib/config.js";
 import { signJwt, verifyJwt, pkceS256 } from "../lib/jwt.js";
 import {
   registerClient, getClient, saveAuthCode, consumeAuthCode,
@@ -14,9 +16,6 @@ import {
   openidConfiguration,
 } from "./metadata.js";
 
-function baseUrl(host: string | null) {
-  return (process.env.MCP_PUBLIC_URL ?? (host ? `https://${host}` : "http://127.0.0.1:3100")).replace(/\/$/, "");
-}
 function sb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
@@ -32,7 +31,7 @@ function form(body: string) {
   return o;
 }
 function esc(s: string) {
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  return s.replace(/&/g,"&").replace(/</g,"<").replace(/>/g,">").replace(/"/g,""");
 }
 function loginHtml(p: Record<string, string>, err?: string) {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Qentrax Sign in</title>
@@ -60,7 +59,7 @@ button{background:#2563eb;border:0;font-weight:600;cursor:pointer}.err{color:#f8
 export async function handleOAuthRoute(
   method: string, pathname: string, url: URL, rawBody: string | undefined, host: string | null,
 ): Promise<{ status: number; headers?: Record<string, string>; body?: string; redirect?: string } | null> {
-  const base = baseUrl(host);
+  const base = publicBaseUrl(host);
   const j = (status: number, body: unknown) => ({
     status, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(body),
   });
