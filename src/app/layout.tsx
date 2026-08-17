@@ -23,7 +23,7 @@ export const metadata: Metadata = {
       "Qentrax connects verified consumer demand with qualified advertisers.",
     url: "https://www.qentrax.io",
     siteName: "Qentrax",
-    images: [{ url: "/icon.png", width: 512, height: 512, alt: "Qentrax" }],
+    images: [{ url: "/icon.png", width: 256, height: 256, alt: "Qentrax" }],
     type: "website",
   },
   twitter: {
