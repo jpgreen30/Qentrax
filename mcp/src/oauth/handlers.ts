@@ -31,11 +31,12 @@ function form(body: string) {
   return o;
 }
 function esc(s: string) {
+  // HTML entity escapes (concat form avoids transport/entity mangling)
   return s
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, "&" + "amp;")
+    .replace(/</g, "&" + "lt;")
+    .replace(/>/g, "&" + "gt;")
+    .replace(/"/g, "&" + "quot;");
 }
 function loginHtml(p: Record<string, string>, err?: string) {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>Qentrax Sign in</title>
