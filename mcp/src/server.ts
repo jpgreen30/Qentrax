@@ -38,6 +38,13 @@ Phase 1 does NOT run provider POST or create financial transactions.
 Do not invent verification that Qentrax did not perform.
 If a user asks to sell or submit a lead, explain that submission is not available in this Phase 1 MCP.`;
 
+/** Phase 1 tools are read-only / non-destructive and operate on a closed marketplace domain. */
+const READ_ONLY_ANNOTATIONS = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  destructiveHint: false,
+} as const;
+
 /**
  * Auth context for upstream Qentrax API calls.
  * Sourced only from the verified OAuth principal bound to this request via ALS.
@@ -78,6 +85,7 @@ export function createQentraxMcpServer(): McpServer {
         .describe("Optional traffic source label, e.g. facebook, google, web"),
       limit: z.number().int().min(1).max(50).optional().describe("Max results (default 25)"),
     },
+    READ_ONLY_ANNOTATIONS,
     async (args) => {
       const result = await findDemandApi(
         {
@@ -108,6 +116,7 @@ export function createQentraxMcpServer(): McpServer {
         .describe("Qentrax vertical code, e.g. auto_insurance, solar, home_services"),
       product: z.string().optional().describe("Optional product code"),
     },
+    READ_ONLY_ANNOTATIONS,
     async (args) => {
       const result = await getRequirementsApi(
         { vertical: args.vertical, product: args.product },
@@ -145,6 +154,7 @@ export function createQentraxMcpServer(): McpServer {
         .optional()
         .describe("If true, validate post-phase contact fields when provided"),
     },
+    READ_ONLY_ANNOTATIONS,
     async (args) => {
       const result = await checkOpportunityApi(
         {
@@ -185,6 +195,7 @@ export function createQentraxMcpServer(): McpServer {
           "Optional organization UUID — only if the user is a member; omit when the user has a single org",
         ),
     },
+    READ_ONLY_ANNOTATIONS,
     async (args) => {
       const result = await getPerformanceApi(
         {
