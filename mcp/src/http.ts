@@ -15,6 +15,16 @@ import { requestContext } from "./lib/request-context.js";
 const PORT = Number(process.env.MCP_PORT ?? process.env.PORT ?? 3100);
 const HOST = process.env.MCP_HOST ?? "0.0.0.0";
 
+/**
+ * OpenAI Apps domain verification token.
+ * Served verbatim at /.well-known/openai-apps-challenge so the OpenAI app
+ * submission form can verify ownership of the MCP hostname.
+ * Override via env when OpenAI issues a new token.
+ */
+const OPENAI_APPS_CHALLENGE_TOKEN =
+  process.env.OPENAI_APPS_CHALLENGE_TOKEN ??
+  "wCFs8KxD-tn8yZcQ36bvaqMmyaDUeD0H02U3blYtaX0";
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -75,6 +85,15 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
         protected_resource: `${base}/.well-known/oauth-protected-resource`,
         authorization_server: `${base}/.well-known/oauth-authorization-server`,
       },
+    });
+    return;
+  }
+
+  // OpenAI Apps domain verification. Unauthenticated, read-only, plain text.
+  if (url.pathname === "/.well-known/openai-apps-challenge" && method === "GET") {
+    send(res, 200, OPENAI_APPS_CHALLENGE_TOKEN, {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
     });
     return;
   }
@@ -194,5 +213,6 @@ httpServer.listen(PORT, HOST, () => {
   console.log(`[qentrax-mcp] MCP: /mcp`);
   console.log(`[qentrax-mcp] PRM: /.well-known/oauth-protected-resource`);
   console.log(`[qentrax-mcp] AS:  /.well-known/oauth-authorization-server`);
+  console.log(`[qentrax-mcp] challenge: /.well-known/openai-apps-challenge`);
   console.log(`[qentrax-mcp] instructions: ${SERVER_INSTRUCTIONS.length} chars`);
 });
