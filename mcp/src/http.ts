@@ -90,8 +90,12 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
 
   // OpenAI Apps domain verification. Unauthenticated, read-only, plain text.
-  if (url.pathname === "/.well-known/openai-apps-challenge" && method === "GET") {
-    send(res, 200, OPENAI_APPS_CHALLENGE_TOKEN, {
+  // HEAD is answered as well as GET so verifiers that probe with HEAD see 200.
+  if (
+    url.pathname === "/.well-known/openai-apps-challenge" &&
+    (method === "GET" || method === "HEAD")
+  ) {
+    send(res, 200, method === "HEAD" ? "" : OPENAI_APPS_CHALLENGE_TOKEN, {
       "content-type": "text/plain; charset=utf-8",
       "cache-control": "no-store",
     });
