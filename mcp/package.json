@@ -1,9 +1,9 @@
 {
   "name": "qentrax-mcp",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
-  "description": "Qentrax MCP adapter Phase 1.5 — OAuth + demand/requirements/preflight/performance",
+  "description": "Qentrax MCP adapter Phase 1.6 — OAuth + demand/requirements/preflight/performance with structured output",
   "scripts": {
     "dev": "tsx watch src/http.ts",
     "start": "node --import tsx src/http.ts",
