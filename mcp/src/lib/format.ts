@@ -3,11 +3,10 @@
  *
  * Each `*Payload` builder returns a plain object that conforms to the matching
  * tool `outputSchema` in server.ts. The `format*` wrappers keep the historical
- * JSON-string shape used for the text content block, so text output is
- * unchanged from before structured content was added.
+ * JSON-string shape used for the text content block.
  *
- * Scalars are normalized on the way out so a surprising upstream type can never
- * fail schema validation and break a tool call.
+ * Values are normalized and type-guarded on the way out so a surprising
+ * upstream payload can neither throw nor fail schema validation.
  */
 
 function str(v: unknown): string | null {
@@ -32,9 +31,14 @@ function arr(v: unknown): unknown[] | null {
   return Array.isArray(v) ? v : null;
 }
 
+/** Coerce an unknown list entry to a safe property bag. */
+function obj(v: unknown): Record<string, unknown> {
+  return (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+}
+
 export function demandPayload(raw: Record<string, unknown>) {
-  const count = Number(raw.count ?? 0);
-  const candidates = (raw.candidates as Array<Record<string, unknown>>) ?? [];
+  const count = num(raw.count) ?? 0;
+  const candidates = Array.isArray(raw.candidates) ? raw.candidates : [];
   if (count === 0) {
     return {
       status: "no_demand",
@@ -51,30 +55,36 @@ export function demandPayload(raw: Record<string, unknown>) {
     reason_code: null,
     message: null,
     query: raw.query ?? null,
-    count: Number.isFinite(count) ? count : 0,
-    opportunities: candidates.slice(0, 15).map((c) => ({
-      vertical: str(c.vertical),
-      product: str(c.product),
-      bid_usd: typeof c.bid_cents === "number" ? (c.bid_cents as number) / 100 : null,
-      bid_type: str(c.bid_type),
-      states: c.states ?? null,
-      network: str(c.network),
-      campaign: str(c.campaign_name),
-    })),
+    count,
+    opportunities: candidates.slice(0, 15).map((entry) => {
+      const c = obj(entry);
+      return {
+        vertical: str(c.vertical),
+        product: str(c.product),
+        bid_usd: typeof c.bid_cents === "number" ? c.bid_cents / 100 : null,
+        bid_type: str(c.bid_type),
+        states: c.states ?? null,
+        network: str(c.network),
+        campaign: str(c.campaign_name),
+      };
+    }),
     note: "Bids are advertiser base bids, not guaranteed publisher payouts. Phase 1 does not submit leads.",
   };
 }
 
 export function requirementsPayload(raw: Record<string, unknown>) {
-  const required = (raw.required_fields as Array<Record<string, unknown>>) ?? [];
-  const optional = (raw.optional_fields as Array<Record<string, unknown>>) ?? [];
-  const field = (f: Record<string, unknown>) => ({
-    field: str(f.field_key),
-    label: str(f.label),
-    phase: str(f.phase),
-    type: str(f.data_type),
-    pii: bool(f.pii),
-  });
+  const required = Array.isArray(raw.required_fields) ? raw.required_fields : [];
+  const optional = Array.isArray(raw.optional_fields) ? raw.optional_fields : [];
+  const field = (entry: unknown) => {
+    const f = obj(entry);
+    return {
+      field: str(f.field_key),
+      label: str(f.label),
+      phase: str(f.phase),
+      type: str(f.data_type),
+      pii: bool(f.pii),
+    };
+  };
   return {
     vertical: str(raw.vertical),
     product: str(raw.product),
@@ -99,17 +109,20 @@ export function preflightPayload(raw: Record<string, unknown>) {
 }
 
 export function performancePayload(raw: Record<string, unknown>) {
-  const metrics = (raw.metrics as Record<string, unknown>) ?? raw;
-  const revenue = Number(metrics.revenue_cents ?? 0);
+  const metrics =
+    raw.metrics && typeof raw.metrics === "object"
+      ? (raw.metrics as Record<string, unknown>)
+      : raw;
+  const revenue = num(metrics.revenue_cents) ?? 0;
+  const avgPayout = num(metrics.avg_payout_cents);
   return {
     submissions: num(metrics.submissions),
     billable: num(metrics.billable),
     rejected: num(metrics.rejected),
     pending: num(metrics.pending),
     acceptance_rate: num(metrics.acceptance_rate),
-    revenue_usd: Number.isFinite(revenue) ? revenue / 100 : null,
-    avg_payout_usd:
-      metrics.avg_payout_cents != null ? num(metrics.avg_payout_cents)! / 100 : null,
+    revenue_usd: revenue / 100,
+    avg_payout_usd: avgPayout === null ? null : avgPayout / 100,
     by_status: metrics.by_status ?? null,
     rejection_reasons: metrics.rejection_reasons ?? null,
   };
