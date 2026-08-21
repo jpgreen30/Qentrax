@@ -22,7 +22,8 @@ export function extractBearerToken(
   headers: Headers | Record<string, string | undefined>,
 ): string | null {
   const get = (k: string) => {
-    if (headers instanceof Headers) return headers.get(k) ?? headers.get(k.toLowerCase());
+    if (headers instanceof Headers)
+      return headers.get(k) ?? headers.get(k.toLowerCase());
     return headers[k] ?? headers[k.toLowerCase()];
   };
   const auth = get("authorization") ?? get("Authorization");
@@ -32,17 +33,18 @@ export function extractBearerToken(
   return null;
 }
 
-export function authenticateMcpRequest(
+export async function authenticateMcpRequest(
   headers: Headers | Record<string, string | undefined>,
   host?: string | null,
-): AuthResult {
+): Promise<AuthResult> {
   const get = (k: string) => {
-    if (headers instanceof Headers) return headers.get(k) ?? headers.get(k.toLowerCase());
+    if (headers instanceof Headers)
+      return headers.get(k) ?? headers.get(k.toLowerCase());
     return headers[k] ?? headers[k.toLowerCase()];
   };
   const authorization = get("authorization") ?? get("Authorization") ?? null;
   const base = publicBaseUrl(host);
-  const verified = verifyAccessToken(authorization, base);
+  const verified = await verifyAccessToken(authorization, base);
   if (!verified.ok) {
     return {
       ok: false,

@@ -3,7 +3,11 @@
  * Streamable HTTP MCP endpoint + OAuth 2.1 discovery/authorize/token.
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createQentraxMcpServer, SERVER_INSTRUCTIONS } from "./server.js";
 import { authenticateMcpRequest, extractBearerToken } from "./lib/auth.js";
@@ -80,7 +84,12 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       ok: true,
       service: "qentrax-mcp",
       phase: "1.5-oauth",
-      tools: ["find_demand", "get_requirements", "check_opportunity", "get_performance"],
+      tools: [
+        "find_demand",
+        "get_requirements",
+        "check_opportunity",
+        "get_performance",
+      ],
       oauth: {
         protected_resource: `${base}/.well-known/oauth-protected-resource`,
         authorization_server: `${base}/.well-known/oauth-authorization-server`,
@@ -104,7 +113,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
 
   const rawBody =
     method === "POST" || method === "PUT" ? await readBody(req) : undefined;
-  const oauth = await handleOAuthRoute(method, url.pathname, url, rawBody, host);
+  const oauth = await handleOAuthRoute(
+    method,
+    url.pathname,
+    url,
+    rawBody,
+    host,
+  );
   if (oauth) {
     if (oauth.redirect) {
       res.writeHead(oauth.status, {
@@ -120,7 +135,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (url.pathname === "/oauth/userinfo" && method === "GET") {
-    const auth = authenticateMcpRequest(
+    const auth = await authenticateMcpRequest(
       new Headers({ authorization: req.headers.authorization ?? "" }),
       host,
     );
@@ -154,14 +169,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (typeof v === "string") headers.set(k, v);
     else if (Array.isArray(v) && v[0]) headers.set(k, v[0]);
   }
-  const auth = authenticateMcpRequest(headers, host);
+  const auth = await authenticateMcpRequest(headers, host);
   if (!auth.ok) {
     send(
       res,
       401,
       { error: { code: auth.code, message: auth.message } },
       {
-        "www-authenticate": wwwAuthenticate(base, "qentrax:demand:read offline_access"),
+        "www-authenticate": wwwAuthenticate(
+          base,
+          "qentrax:demand:read offline_access",
+        ),
         "content-type": "application/json",
       },
     );
@@ -185,12 +203,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
         parsedBody = undefined;
       }
     }
-    await requestContext.run(
-      { auth: auth.context, accessToken },
-      async () => {
-        await transport.handleRequest(req, res, parsedBody);
-      },
-    );
+    await requestContext.run({ auth: auth.context, accessToken }, async () => {
+      await transport.handleRequest(req, res, parsedBody);
+    });
   } catch (e) {
     if (!res.headersSent) {
       send(res, 500, {
@@ -207,16 +222,22 @@ const httpServer = createServer((req, res) => {
   handler(req, res).catch((e) => {
     console.error("[qentrax-mcp]", e);
     if (!res.headersSent) {
-      send(res, 500, { error: { code: "INTERNAL_ERROR", message: "Unhandled" } });
+      send(res, 500, {
+        error: { code: "INTERNAL_ERROR", message: "Unhandled" },
+      });
     }
   });
 });
 
 httpServer.listen(PORT, HOST, () => {
-  console.log(`[qentrax-mcp] Phase 1.5 OAuth listening on http://${HOST}:${PORT}`);
+  console.log(
+    `[qentrax-mcp] Phase 1.5 OAuth listening on http://${HOST}:${PORT}`,
+  );
   console.log(`[qentrax-mcp] MCP: /mcp`);
   console.log(`[qentrax-mcp] PRM: /.well-known/oauth-protected-resource`);
   console.log(`[qentrax-mcp] AS:  /.well-known/oauth-authorization-server`);
   console.log(`[qentrax-mcp] challenge: /.well-known/openai-apps-challenge`);
-  console.log(`[qentrax-mcp] instructions: ${SERVER_INSTRUCTIONS.length} chars`);
+  console.log(
+    `[qentrax-mcp] instructions: ${SERVER_INSTRUCTIONS.length} chars`,
+  );
 });

@@ -1,8 +1,71 @@
 import { supabasePublicConfig } from "./password-reset.js";
-function esc(s:string){return s.replace(/&/g,"&"+"amp;").replace(/</g,"&"+"lt;").replace(/>/g,"&"+"gt;").replace(/"/g,"&"+"quot;")}
-const css=`body{font-family:system-ui;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:28px;max-width:400px;width:100%}input,button{width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border-radius:8px;border:1px solid #374151;background:#0b1220;color:#fff}button{background:#2563eb;border:0;font-weight:600}.err{color:#f87171}.ok{color:#34d399}a{color:#93c5fd}.muted{font-size:12px;color:#6b7280}`;
-export type OAuthReturnParams={client_id?:string;redirect_uri?:string;state?:string;scope?:string;code_challenge?:string;code_challenge_method?:string;resource?:string};
-export function authorizeReturnHref(p:OAuthReturnParams){if(!p.client_id||!p.redirect_uri||!p.code_challenge)return null;const u=new URL("/oauth/authorize","https://placeholder.local");u.searchParams.set("client_id",p.client_id);u.searchParams.set("redirect_uri",p.redirect_uri);u.searchParams.set("response_type","code");u.searchParams.set("code_challenge",p.code_challenge);u.searchParams.set("code_challenge_method",p.code_challenge_method||"S256");if(p.state)u.searchParams.set("state",p.state);if(p.scope)u.searchParams.set("scope",p.scope);if(p.resource)u.searchParams.set("resource",p.resource);return u.pathname+u.search}
-function hidden(p:OAuthReturnParams){return (["client_id","redirect_uri","state","scope","code_challenge","code_challenge_method","resource"] as (keyof OAuthReturnParams)[]).map(k=>p[k]?`<input type="hidden" name="${k}" value="${esc(p[k]!)}"/>`:"").join("\n")}
-export function forgotPasswordHtml(p:OAuthReturnParams,o?:{err?:string;ok?:string}){const back=authorizeReturnHref(p);const link=back?`<p class="muted"><a href="${esc(back)}">← Back to sign in</a></p>`:`<p class="muted"><a href="/oauth/authorize">← Back to sign in</a> (or return to ChatGPT and reconnect)</p>`;if(o?.ok)return `<!doctype html><html><head><title>Check your email · Qentrax</title><style>${css}</style></head><body><div class="card"><h1>Check your email</h1><p class="ok">${esc(o.ok)}</p>${link}</div></body></html>`;return `<!doctype html><html><head><title>Forgot password · Qentrax</title><style>${css}</style></head><body><form class="card" method="POST" action="/oauth/forgot-password"><h1>Forgot password</h1><p class="muted">Enter the email for your Qentrax account. We will send a reset link if an account exists.</p>${o?.err?`<p class="err">${esc(o.err)}</p>`:""}${hidden(p)}<label>Email</label><input type="email" name="email" required autocomplete="email"/><button type="submit">Send reset link</button>${link}</form></body></html>`}
-export function resetPasswordHtml(p:OAuthReturnParams){const{url,anonKey}=supabasePublicConfig();const back=authorizeReturnHref(p)||"/oauth/authorize";return `<!doctype html><html><head><title>Set new password · Qentrax</title><style>${css}</style></head><body><div class="card"><h1>Set new password</h1><p id="status">Validating reset link…</p><form id="form" style="display:none"><input type="password" id="password" required minlength="8" placeholder="New password"/><input type="password" id="password2" required minlength="8" placeholder="Confirm password"/><p class="err" id="err"></p><button>Update password</button></form><div id="done" style="display:none"><p class="ok">Password updated. You can sign in with your new password.</p><a href="${esc(back)}">Continue to sign in</a></div></div><script type="module">import{createClient}from"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";const s=createClient(${JSON.stringify(url)},${JSON.stringify(anonKey)},{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),status=document.getElementById("status"),form=document.getElementById("form"),err=document.getElementById("err"),done=document.getElementById("done");async function ready(){try{const q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1)),code=q.get("code"),at=h.get("access_token")||q.get("access_token"),rt=h.get("refresh_token")||q.get("refresh_token");if(code){const{x,error}=await s.auth.exchangeCodeForSession(code);if(error)throw error}else if(at){const{x,error}=await s.auth.setSession({access_token:at,refresh_token:rt||at});if(error)throw error}else{const{data}=await s.auth.getSession();if(!data.session)throw new Error("This reset link is invalid or has expired.")}status.textContent="Choose a new password for your Qentrax account.";form.style.display="block"}catch(e){status.textContent=e?.message||"This reset link is invalid or has expired.";status.className="err"}}form.addEventListener("submit",async e=>{e.preventDefault();const a=document.getElementById("password").value,b=document.getElementById("password2").value;if(a.length<8){err.textContent="Password must be at least 8 characters.";return}if(a!==b){err.textContent="Passwords do not match.";return}const{error}=await s.auth.updateUser({password:a});if(error){err.textContent=error.message;return}form.style.display="none";status.style.display="none";done.style.display="block";history.replaceState(null,"",location.pathname)});ready();</script></body></html>`}
+function esc(s: string) {
+  return s
+    .replace(/&/g, "&" + "amp;")
+    .replace(/</g, "&" + "lt;")
+    .replace(/>/g, "&" + "gt;")
+    .replace(/"/g, "&" + "quot;");
+}
+const css = `body{font-family:system-ui;background:#0b1220;color:#e5e7eb;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:28px;max-width:400px;width:100%}input,button{width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border-radius:8px;border:1px solid #374151;background:#0b1220;color:#fff}button{background:#2563eb;border:0;font-weight:600}.err{color:#f87171}.ok{color:#34d399}a{color:#93c5fd}.muted{font-size:12px;color:#6b7280}`;
+export type OAuthReturnParams = {
+  client_id?: string;
+  redirect_uri?: string;
+  state?: string;
+  scope?: string;
+  code_challenge?: string;
+  code_challenge_method?: string;
+  resource?: string;
+  nonce?: string;
+};
+export function authorizeReturnHref(p: OAuthReturnParams) {
+  if (!p.client_id || !p.redirect_uri || !p.code_challenge) return null;
+  const u = new URL("/oauth/authorize", "https://placeholder.local");
+  u.searchParams.set("client_id", p.client_id);
+  u.searchParams.set("redirect_uri", p.redirect_uri);
+  u.searchParams.set("response_type", "code");
+  u.searchParams.set("code_challenge", p.code_challenge);
+  u.searchParams.set(
+    "code_challenge_method",
+    p.code_challenge_method || "S256",
+  );
+  if (p.state) u.searchParams.set("state", p.state);
+  if (p.scope) u.searchParams.set("scope", p.scope);
+  if (p.resource) u.searchParams.set("resource", p.resource);
+  if (p.nonce) u.searchParams.set("nonce", p.nonce);
+  return u.pathname + u.search;
+}
+function hidden(p: OAuthReturnParams) {
+  return (
+    [
+      "client_id",
+      "redirect_uri",
+      "state",
+      "scope",
+      "code_challenge",
+      "code_challenge_method",
+      "resource",
+      "nonce",
+    ] as (keyof OAuthReturnParams)[]
+  )
+    .map((k) =>
+      p[k] ? `<input type="hidden" name="${k}" value="${esc(p[k]!)}"/>` : "",
+    )
+    .join("\n");
+}
+export function forgotPasswordHtml(
+  p: OAuthReturnParams,
+  o?: { err?: string; ok?: string },
+) {
+  const back = authorizeReturnHref(p);
+  const link = back
+    ? `<p class="muted"><a href="${esc(back)}">← Back to sign in</a></p>`
+    : `<p class="muted"><a href="/oauth/authorize">← Back to sign in</a> (or return to ChatGPT and reconnect)</p>`;
+  if (o?.ok)
+    return `<!doctype html><html><head><title>Check your email · Qentrax</title><style>${css}</style></head><body><div class="card"><h1>Check your email</h1><p class="ok">${esc(o.ok)}</p>${link}</div></body></html>`;
+  return `<!doctype html><html><head><title>Forgot password · Qentrax</title><style>${css}</style></head><body><form class="card" method="POST" action="/oauth/forgot-password"><h1>Forgot password</h1><p class="muted">Enter the email for your Qentrax account. We will send a reset link if an account exists.</p>${o?.err ? `<p class="err">${esc(o.err)}</p>` : ""}${hidden(p)}<label>Email</label><input type="email" name="email" required autocomplete="email"/><button type="submit">Send reset link</button>${link}</form></body></html>`;
+}
+export function resetPasswordHtml(p: OAuthReturnParams) {
+  const { url, anonKey } = supabasePublicConfig();
+  const back = authorizeReturnHref(p) || "/oauth/authorize";
+  return `<!doctype html><html><head><title>Set new password · Qentrax</title><style>${css}</style></head><body><div class="card"><h1>Set new password</h1><p id="status">Validating reset link…</p><form id="form" style="display:none"><input type="password" id="password" required minlength="8" placeholder="New password"/><input type="password" id="password2" required minlength="8" placeholder="Confirm password"/><p class="err" id="err"></p><button>Update password</button></form><div id="done" style="display:none"><p class="ok">Password updated. You can sign in with your new password.</p><a href="${esc(back)}">Continue to sign in</a></div></div><script type="module">import{createClient}from"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";const s=createClient(${JSON.stringify(url)},${JSON.stringify(anonKey)},{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}),status=document.getElementById("status"),form=document.getElementById("form"),err=document.getElementById("err"),done=document.getElementById("done");async function ready(){try{const q=new URLSearchParams(location.search),h=new URLSearchParams(location.hash.slice(1)),code=q.get("code"),at=h.get("access_token")||q.get("access_token"),rt=h.get("refresh_token")||q.get("refresh_token");if(code){const{x,error}=await s.auth.exchangeCodeForSession(code);if(error)throw error}else if(at){const{x,error}=await s.auth.setSession({access_token:at,refresh_token:rt||at});if(error)throw error}else{const{data}=await s.auth.getSession();if(!data.session)throw new Error("This reset link is invalid or has expired.")}status.textContent="Choose a new password for your Qentrax account.";form.style.display="block"}catch(e){status.textContent=e?.message||"This reset link is invalid or has expired.";status.className="err"}}form.addEventListener("submit",async e=>{e.preventDefault();const a=document.getElementById("password").value,b=document.getElementById("password2").value;if(a.length<8){err.textContent="Password must be at least 8 characters.";return}if(a!==b){err.textContent="Passwords do not match.";return}const{error}=await s.auth.updateUser({password:a});if(error){err.textContent=error.message;return}form.style.display="none";status.style.display="none";done.style.display="block";history.replaceState(null,"",location.pathname)});ready();</script></body></html>`;
+}

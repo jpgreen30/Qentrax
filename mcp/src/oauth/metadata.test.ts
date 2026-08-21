@@ -1,11 +1,11 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { publicBaseUrl, mcpResourceUrl } from "../lib/config.ts";
+import { publicBaseUrl, mcpResourceUrl } from "../lib/config.js";
 import {
   protectedResourceMetadata,
   authorizationServerMetadata,
-} from "./metadata.ts";
-import { handleOAuthRoute } from "./handlers.ts";
+} from "./metadata.js";
+import { handleOAuthRoute } from "./handlers.js";
 
 describe("OAuth metadata derivation from MCP_PUBLIC_URL", () => {
   const original = process.env.MCP_PUBLIC_URL;
@@ -37,9 +37,15 @@ describe("OAuth metadata derivation from MCP_PUBLIC_URL", () => {
   it("AS issuer and endpoints use mcp.qentrax.io", () => {
     const as = authorizationServerMetadata(publicBaseUrl());
     assert.equal(as.issuer, "https://mcp.qentrax.io");
-    assert.equal(as.authorization_endpoint, "https://mcp.qentrax.io/oauth/authorize");
+    assert.equal(
+      as.authorization_endpoint,
+      "https://mcp.qentrax.io/oauth/authorize",
+    );
     assert.equal(as.token_endpoint, "https://mcp.qentrax.io/oauth/token");
-    assert.equal(as.registration_endpoint, "https://mcp.qentrax.io/oauth/register");
+    assert.equal(
+      as.registration_endpoint,
+      "https://mcp.qentrax.io/oauth/register",
+    );
     assert.ok(as.code_challenge_methods_supported.includes("S256"));
   });
 
@@ -58,7 +64,11 @@ describe("OAuth metadata derivation from MCP_PUBLIC_URL", () => {
         undefined,
         "mcp.qentrax.io",
       );
-      assert.equal(result?.status, 200, `${path} must be publicly discoverable`);
+      assert.equal(
+        result?.status,
+        200,
+        `${path} must be publicly discoverable`,
+      );
       assert.doesNotThrow(() => JSON.parse(result?.body ?? ""));
     }
   });
