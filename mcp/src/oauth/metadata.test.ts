@@ -5,6 +5,7 @@ import {
   protectedResourceMetadata,
   authorizationServerMetadata,
 } from "./metadata.ts";
+import { handleOAuthRoute } from "./handlers.ts";
 
 describe("OAuth metadata derivation from MCP_PUBLIC_URL", () => {
   const original = process.env.MCP_PUBLIC_URL;
@@ -40,6 +41,26 @@ describe("OAuth metadata derivation from MCP_PUBLIC_URL", () => {
     assert.equal(as.token_endpoint, "https://mcp.qentrax.io/oauth/token");
     assert.equal(as.registration_endpoint, "https://mcp.qentrax.io/oauth/register");
     assert.ok(as.code_challenge_methods_supported.includes("S256"));
+  });
+
+  it("serves resource-scoped discovery paths used by fresh MCP clients", async () => {
+    const paths = [
+      "/.well-known/oauth-protected-resource/mcp",
+      "/.well-known/oauth-authorization-server/mcp",
+      "/.well-known/openid-configuration/mcp",
+    ];
+
+    for (const path of paths) {
+      const result = await handleOAuthRoute(
+        "GET",
+        path,
+        new URL(path, "https://mcp.qentrax.io"),
+        undefined,
+        "mcp.qentrax.io",
+      );
+      assert.equal(result?.status, 200, `${path} must be publicly discoverable`);
+      assert.doesNotThrow(() => JSON.parse(result?.body ?? ""));
+    }
   });
 
   it("rejects Supabase origin in MCP_PUBLIC_URL", () => {
