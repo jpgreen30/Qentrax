@@ -33,9 +33,18 @@ let database: SupabaseClient | null | undefined;
 
 function db(): SupabaseClient | null {
   if (database !== undefined) return database;
+  if (process.env.NODE_ENV === "test" || process.argv.includes("--test")) {
+    database = null;
+    return database;
+  }
   const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    "";
   database =
     url && key
       ? createClient(url, key, {
@@ -56,13 +65,11 @@ export async function getClient(
   if (cached) return cached;
   const database = db();
   if (!database) return undefined;
-  const { data, error } = await database
-    .from("oauth_clients")
-    .select("client_data")
-    .eq("client_id", clientId)
-    .maybeSingle();
+  const { data, error } = await database.rpc("oauth_get_client", {
+    p_client_id: clientId,
+  });
   if (error) throw error;
-  const client = data?.client_data as RegisteredClient | undefined;
+  const client = data as RegisteredClient | undefined;
   if (client) clients.set(client.client_id, client);
   return client;
 }
@@ -86,9 +93,9 @@ export async function registerClient(input: {
   clients.set(client.client_id, client);
   const database = db();
   if (database) {
-    const { error } = await database.from("oauth_clients").insert({
-      client_id: client.client_id,
-      client_data: client,
+    const { error } = await database.rpc("oauth_register_client", {
+      p_client_id: client.client_id,
+      p_client_data: client,
     });
     if (error) throw error;
   }
@@ -100,10 +107,10 @@ export async function saveAuthCode(rec: AuthCodeRecord): Promise<void> {
   const database = db();
   if (database) {
     const stored = { ...rec, code: "" };
-    const { error } = await database.from("oauth_authorization_codes").insert({
-      code_hash: codeHash(rec.code),
-      code_data: stored,
-      expires_at: new Date(rec.expires_at).toISOString(),
+    const { error } = await database.rpc("oauth_save_authorization_code", {
+      p_code_hash: codeHash(rec.code),
+      p_code_data: stored,
+      p_expires_at: new Date(rec.expires_at).toISOString(),
     });
     if (error) throw error;
   }
@@ -117,16 +124,15 @@ export async function consumeAuthCode(
   const database = db();
   if (!database)
     return cached && cached.expires_at >= Date.now() ? cached : undefined;
-  const { data, error } = await database
-    .from("oauth_authorization_codes")
-    .delete()
-    .eq("code_hash", codeHash(code))
-    .gt("expires_at", new Date().toISOString())
-    .select("code_data")
-    .maybeSingle();
+  const { data, error } = await database.rpc(
+    "oauth_consume_authorization_code",
+    {
+      p_code_hash: codeHash(code),
+    },
+  );
   if (error) throw error;
-  if (!data?.code_data) return undefined;
-  return { ...(data.code_data as Omit<AuthCodeRecord, "code">), code };
+  if (!data) return undefined;
+  return { ...(data as Omit<AuthCodeRecord, "code">), code };
 }
 
 export function isValidRedirectUri(uri: string): boolean {
@@ -154,9 +160,9 @@ export async function revokeJti(jti: string, expiresAt: number): Promise<void> {
   revokedJtis.set(jti, expiresAt);
   const database = db();
   if (database) {
-    const { error } = await database.from("oauth_revoked_tokens").upsert({
-      jti,
-      expires_at: new Date(expiresAt * 1000).toISOString(),
+    const { error } = await database.rpc("oauth_revoke_jti", {
+      p_jti: jti,
+      p_expires_at: new Date(expiresAt * 1000).toISOString(),
     });
     if (error) throw error;
   }
@@ -167,12 +173,9 @@ export async function isJtiRevoked(jti: string): Promise<boolean> {
   if (cachedExpiry && cachedExpiry > Math.floor(Date.now() / 1000)) return true;
   const database = db();
   if (!database) return false;
-  const { data, error } = await database
-    .from("oauth_revoked_tokens")
-    .select("jti")
-    .eq("jti", jti)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
+  const { data, error } = await database.rpc("oauth_is_jti_revoked", {
+    p_jti: jti,
+  });
   if (error) throw error;
-  return Boolean(data);
+  return data === true;
 }
