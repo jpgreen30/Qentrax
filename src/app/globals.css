@@ -41,3 +41,4 @@ h1,h3{font-weight:inherit}
 @keyframes q-ticker-glow{0%,100%{color:#687a7e}50%{color:#9aacaf}}
 @keyframes q-vault{to{transform:rotate(405deg)}}
 @media(prefers-reduced-motion:reduce){.radar:after,.radar i,.radar>strong,.radar>b,.terminal header b,.terminal>section>div,.ticker span,.vaultCore:before,.vaultCore:after{animation:none!important}}
+@media(max-width:900px){.signalGrid{grid-template-columns:1fr}.signalGrid article{border-right:0!important;border-bottom:1px solid #2d3d42!important}.signalGrid article:last-child{border-bottom:0!important}}
