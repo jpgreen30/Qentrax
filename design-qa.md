@@ -52,3 +52,63 @@
 final result: passed
 
 No P0, P1 or P2 visual blockers remain. The landing page and the advertiser, publisher and blog routes are responsive and materially consistent with their approved references.
+
+---
+
+# CTA Design QA
+
+- Source visual truth: `C:\Users\jpgre\Downloads\Screenshot (9).png`
+- Implementation screenshots:
+  - `C:\Users\jpgre\.codex\visualizations\2026\08\24\01a03318-f4ad-7dc0-93e3-8ee32b44c213\cta-desktop.jpg`
+  - `C:\Users\jpgre\.codex\visualizations\2026\08\24\01a03318-f4ad-7dc0-93e3-8ee32b44c213\cta-mobile.jpg`
+- Combined comparison: `C:\Users\jpgre\.codex\visualizations\2026\08\24\01a03318-f4ad-7dc0-93e3-8ee32b44c213\cta-comparison.jpg`
+- State: default CTA section
+
+## Viewports and normalization
+
+- Source: 1902 x 454 px at 1x density; lime section occupies the first 439 px.
+- Desktop implementation: rendered at a 1900 x 900 CSS viewport at 1x density. The CTA measured 1900 x 440 CSS px. The in-app capture surface was normalized to a 1697 px content width for the combined visual comparison.
+- Mobile implementation: rendered at a 390 x 800 CSS viewport at 1x density. The CTA measured 375 x 493 CSS px inside the browser content area.
+
+## Full-view comparison evidence
+
+- Desktop composition matches the supplied three-column hierarchy: left eyebrow, central two-line headline, and right-aligned horizontal CTAs.
+- At the source viewport, measured x positions were within 1–2 px of the reference: eyebrow 64 px, headline 389 px, primary CTA 1319.7 px, secondary CTA 1592.7 px.
+- Section height is 440 px versus 439 px of lime in the reference.
+- The existing gradient samples match the source at the left, center, and right within normal JPEG capture variance.
+
+## Focused region evidence
+
+- Typography: black Arial/Helvetica headline at 700 weight and 76 px desktop; black eyebrow; monospaced CTA labels.
+- Spacing: desktop buttons measure 255 x 68 px and 228 x 68 px, matching the source treatment and spacing.
+- Colors: the existing acid/lime gradient is preserved; all requested text is black.
+- Image quality/assets: the section contains no raster imagery or custom icon assets; the supplied arrow glyph is retained as part of the required CTA copy.
+- Copy: exact required eyebrow, headline, and CTA labels are present.
+- Mobile: content stacks vertically, both buttons fill the available width, and the CTA reports equal scroll/client widths with no section-level horizontal overflow.
+
+## Interaction and console verification
+
+- `START BUYING ↗` navigated to `/advertiser`.
+- `START EARNING ↗` navigated to `/publisher`.
+- Browser console errors: none.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+- P3: browser font rasterization differs subtly from the supplied screenshot, as expected across capture surfaces.
+
+## Comparison history
+
+- Initial implementation comparison found the requested layout, copy, colors, button treatment, and reference alignment already within acceptance tolerance. No P0/P1/P2 correction loop was required.
+
+## Implementation checklist
+
+- [x] Exact required copy
+- [x] Black eyebrow and headline
+- [x] Advertiser and publisher destinations
+- [x] Preserved lime gradient
+- [x] Desktop hierarchy and spacing
+- [x] Responsive mobile stacking
+- [x] CTA interactions and console checked
+
+final result: passed
