@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails/batch";
 const TO_EMAIL = "network@qentrax.io";
-const FALLBACK_EMAIL = "jpgreen1@gmail.com";
 
 function clean(value: unknown, max = 4000) {
   return String(value ?? "").trim().slice(0, max);
@@ -51,7 +50,7 @@ export async function POST(request: Request) {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify([
-      { from, to: [TO_EMAIL, FALLBACK_EMAIL], reply_to: email, subject, html },
+      { from, to: [TO_EMAIL], reply_to: email, subject, html },
       {
         from,
         to: [email],
