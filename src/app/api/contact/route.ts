@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const RESEND_ENDPOINT = "https://api.resend.com/emails/batch";
 const TO_EMAIL = "network@qentrax.io";
+const FALLBACK_EMAIL = "jpgreen1@gmail.com";
 
 function clean(value: unknown, max = 4000) {
   return String(value ?? "").trim().slice(0, max);
@@ -44,10 +45,21 @@ export async function POST(request: Request) {
   const subject = `Qentrax inquiry — ${company || name}`;
   const html = `<div style="font-family:Arial,sans-serif;color:#071014;line-height:1.6"><h2>New Qentrax network inquiry</h2><p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Company:</strong> ${escapeHtml(company || "—")}</p><p><strong>Role / interest:</strong> ${escapeHtml(role || "—")}</p><hr/><p>${escapeHtml(message).replace(/\n/g,"<br/>")}</p></div>`;
 
+  const confirmationHtml = `<div style="font-family:Arial,sans-serif;color:#071014;line-height:1.6"><h2>We received your Qentrax inquiry</h2><p>Hi ${escapeHtml(name)},</p><p>Thank you for contacting the Qentrax network. Your message has been received, and our team will follow up at this email address.</p><p>— Qentrax Network</p></div>`;
+
   const response = await fetch(RESEND_ENDPOINT, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [TO_EMAIL], reply_to: email, subject, html }),
+    body: JSON.stringify([
+      { from, to: [TO_EMAIL, FALLBACK_EMAIL], reply_to: email, subject, html },
+      {
+        from,
+        to: [email],
+        reply_to: TO_EMAIL,
+        subject: "We received your Qentrax inquiry",
+        html: confirmationHtml,
+      },
+    ]),
   });
 
   if (!response.ok) {
