@@ -1,65 +1,123 @@
-import { apiError, apiOk } from "@/lib/api";
-import { requireAuthContext } from "@/lib/auth-context";
-import { requestId } from "@/lib/request-id";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import type { NextRequest } from "next/server";
+import {
+  recordConversionEvent,
+  bulkRecordConversions,
+  type ConversionStatus,
+} from "@/lib/services/conversion-tracking";
 
-/**
- * POST /api/v1/conversions — advertiser (or publisher) disposition / sale event.
- * Body: organization_id, transaction_id, event_type, external_event_id, revenue_cents?, product?
- */
-export async function POST(request: Request) {
-  const id = requestId(request.headers.get("x-request-id"));
-  const auth = await requireAuthContext();
-  if (!auth) return apiError("AUTH_REQUIRED", "Authentication is required.", id, 401);
+export async function GET(request: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  );
 
-  let body: {
-    organization_id?: string;
-    transaction_id?: string;
-    event_type?: string;
-    external_event_id?: string;
-    revenue_cents?: number;
-    product?: string;
-    payload?: Record<string, unknown>;
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return apiError("VALIDATION_ERROR", "Invalid JSON body.", id, 400);
-  }
+  const organizationId = request.nextUrl.searchParams.get("organization_id");
+  const deliveryId = request.nextUrl.searchParams.get("delivery_id");
+  const status = request.nextUrl.searchParams.get("status");
+  const limit = parseInt(request.nextUrl.searchParams.get("limit") || "20");
+  const offset = parseInt(request.nextUrl.searchParams.get("offset") || "0");
 
-  if (!body.organization_id || !body.transaction_id || !body.event_type || !body.external_event_id) {
-    return apiError(
-      "VALIDATION_ERROR",
-      "organization_id, transaction_id, event_type, and external_event_id are required.",
-      id,
-      400,
+  if (!organizationId) {
+    return Response.json(
+      { success: false, message: "organization_id parameter required" },
+      { status: 400 }
     );
   }
 
-  const allowed = ["contacted", "qualified", "sale", "rejected", "returned", "refunded"];
-  if (!allowed.includes(body.event_type)) {
-    return apiError(
-      "VALIDATION_ERROR",
-      `event_type must be one of: ${allowed.join(", ")}.`,
-      id,
-      400,
-    );
+  let query = supabase
+    .from("conversion_events")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .range(offset, offset + limit - 1);
+
+  if (deliveryId) {
+    query = query.eq("delivery_id", deliveryId);
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("record_conversion_event", {
-    p_organization_id: body.organization_id,
-    p_transaction_id: body.transaction_id,
-    p_event_type: body.event_type,
-    p_external_event_id: body.external_event_id,
-    p_revenue_cents: body.revenue_cents ?? null,
-    p_product: body.product ?? null,
-    p_payload: body.payload ?? {},
-  });
+  if (status) {
+    query = query.eq("conversion_status", status);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
-    return apiError("INTERNAL_ERROR", error.message, id, 500);
+    return Response.json(
+      { success: false, message: error.message },
+      { status: 500 }
+    );
   }
 
-  return apiOk({ conversion: data }, id, 201);
+  return Response.json({
+    success: true,
+    data: data || [],
+    count: count || 0,
+    limit,
+    offset,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  );
+
+  const body = await request.json();
+  const {
+    organization_id,
+    delivery_id,
+    transaction_id,
+    conversion_status,
+    bulk,
+    conversions,
+    conversion_value,
+    event_type,
+    external_conversion_id,
+  } = body;
+
+  if (!organization_id) {
+    return Response.json(
+      { success: false, message: "organization_id required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    if (bulk && Array.isArray(conversions)) {
+      const results = await bulkRecordConversions(supabase, organization_id, conversions);
+      return Response.json({ success: true, data: results }, { status: 201 });
+    }
+
+    if (!delivery_id || !transaction_id || !conversion_status) {
+      return Response.json(
+        {
+          success: false,
+          message: "delivery_id, transaction_id, and conversion_status required",
+        },
+        { status: 400 }
+      );
+    }
+
+    const result = await recordConversionEvent(
+      supabase,
+      organization_id,
+      delivery_id,
+      transaction_id,
+      conversion_status as ConversionStatus,
+      {
+        conversionValue: conversion_value,
+        eventType: event_type,
+        externalConversionId: external_conversion_id,
+      }
+    );
+
+    return Response.json({ success: true, data: result }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return Response.json(
+      { success: false, message },
+      { status: 500 }
+    );
+  }
 }
