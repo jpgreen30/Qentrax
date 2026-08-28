@@ -18,3 +18,11 @@ export type { RecordAuctionInput, AuctionLogRecord } from "./auction-log";
 // Phase 2: Native Ping/Post
 export { ping, post } from "./ping-post";
 export type { PingInput, PingResult, PostInput, PostResult } from "./ping-post";
+
+// Phase 4: Delivery Execution
+export { deliverLead, retryPendingDeliveries } from "./delivery";
+export type { DeliveryInput, DeliveryResult, DeliveryAttemptRecord } from "./delivery";
+
+// Phase 4: Returns & Chargebacks
+export { requestReturn, approveReturn, rejectReturn, getPendingReturns } from "./returns";
+export type { ReturnRequestInput, ReturnRequestResult, ApproveReturnInput } from "./returns";
