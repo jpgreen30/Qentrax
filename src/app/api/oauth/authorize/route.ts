@@ -13,6 +13,16 @@ function generateCodeChallenge(codeVerifier: string): string {
   return createHash("sha256").update(codeVerifier).digest("base64url");
 }
 
+function escapeHtml(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const clientId = searchParams.get("client_id");
@@ -28,6 +38,20 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  const escapedClientId = escapeHtml(clientId);
+  const escapedRedirectUri = escapeHtml(redirectUri);
+  const escapedScope = escapeHtml(scope);
+  const escapedState = escapeHtml(state);
+  const escapedCodeChallenge = escapeHtml(codeChallenge);
+  const escapedCodeChallengeMethod = escapeHtml(codeChallengeMethod);
+
+  const scopesList = scope
+    ? scope
+        .split(" ")
+        .map((s) => escapeHtml(s))
+        .join("<br>")
+    : "No specific scopes";
 
   const html = `
 <!DOCTYPE html>
@@ -53,10 +77,10 @@ export async function GET(request: NextRequest) {
 <body>
   <div class="container">
     <h1>Qentrax Authorization</h1>
-    <p>Sign in to authorize ${clientId}</p>
+    <p>Sign in to authorize ${escapedClientId}</p>
     <div class="scopes">
       <strong>Requested permissions:</strong><br>
-      ${scope?.split(" ").join("<br>") || "No specific scopes"}
+      ${scopesList}
     </div>
     <form method="POST">
       <div class="form-group">
@@ -67,12 +91,12 @@ export async function GET(request: NextRequest) {
         <label for="password">Password</label>
         <input type="password" id="password" name="password" required>
       </div>
-      <input type="hidden" name="client_id" value="${clientId}">
-      <input type="hidden" name="redirect_uri" value="${redirectUri}">
-      <input type="hidden" name="scope" value="${scope || ""}">
-      <input type="hidden" name="state" value="${state}">
-      <input type="hidden" name="code_challenge" value="${codeChallenge || ""}">
-      <input type="hidden" name="code_challenge_method" value="${codeChallengeMethod || ""}">
+      <input type="hidden" name="client_id" value="${escapedClientId}">
+      <input type="hidden" name="redirect_uri" value="${escapedRedirectUri}">
+      <input type="hidden" name="scope" value="${escapedScope}">
+      <input type="hidden" name="state" value="${escapedState}">
+      <input type="hidden" name="code_challenge" value="${escapedCodeChallenge}">
+      <input type="hidden" name="code_challenge_method" value="${escapedCodeChallengeMethod}">
       <button type="submit">Authorize</button>
     </form>
   </div>

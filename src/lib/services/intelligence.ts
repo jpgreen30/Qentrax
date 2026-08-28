@@ -370,7 +370,7 @@ export async function forecastRevenue(
   const recentDays = revenueValues.slice(-7);
   const trend = recentDays.length > 1 ? (recentDays[recentDays.length - 1] - recentDays[0]) / recentDays.length : 0;
 
-  const forecastedRevenue = avgDaily * forecastDays + trend * forecastDays * (forecastDays / 2);
+  const forecastedRevenue = Math.max(0, avgDaily * forecastDays + trend * forecastDays * (forecastDays / 2));
   const confidence = Math.max(0.6, Math.min(0.9, revenueValues.length / 30)); // More data = higher confidence
 
   return {
@@ -381,7 +381,7 @@ export async function forecastRevenue(
     entity_type: "organization",
     prediction_value: forecastedRevenue,
     confidence_interval: {
-      lower: forecastedRevenue * 0.8,
+      lower: Math.max(0, forecastedRevenue * 0.8),
       upper: forecastedRevenue * 1.2,
     },
     time_horizon_days: forecastDays,
@@ -402,11 +402,12 @@ export async function predictChurnRisk(
   entityType: "advertiser" | "publisher",
   entityId: string
 ): Promise<Prediction> {
-  // Fetch recent activity
+  // Fetch recent activity for the specific entity
   const { data: recentOrders, error } = await supabase
     .from(entityType === "advertiser" ? "campaigns" : "opportunities")
     .select("id, updated_at, status")
     .eq("organization_id", organizationId)
+    .eq("id", entityId)
     .order("updated_at", { ascending: false })
     .limit(10);
 

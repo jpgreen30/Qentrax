@@ -43,19 +43,18 @@ GROUP BY d.vertical_id, DATE_TRUNC('day', d.created_at);
 -- View for campaign ROI metrics
 CREATE OR REPLACE VIEW campaign_roi_metrics AS
 SELECT
-  al.winner_campaign_id,
+  t.campaign_id,
   COUNT(DISTINCT d.id) as total_deliveries,
   COUNT(DISTINCT CASE WHEN ce.conversion_status = 'qualified' THEN ce.id END) as total_conversions,
   SUM(t.bid_amount) as total_spend,
   SUM(COALESCE(ce.conversion_value, 0)) as total_revenue,
   SUM(t.bid_amount) / NULLIF(COUNT(DISTINCT CASE WHEN ce.conversion_status = 'qualified' THEN ce.id END), 0) as cpa,
   SUM(COALESCE(ce.conversion_value, 0)) / NULLIF(SUM(t.bid_amount), 0) as roas
-FROM auction_logs al
-JOIN deliveries d ON al.delivery_id = d.id
+FROM deliveries d
 JOIN transactions t ON t.id = d.transaction_id
 LEFT JOIN conversion_events ce ON d.id = ce.delivery_id
 WHERE ce.conversion_status = 'qualified' OR ce.id IS NULL
-GROUP BY al.winner_campaign_id;
+GROUP BY t.campaign_id;
 
 -- View for connector quality scoring
 CREATE OR REPLACE VIEW connector_quality_metrics AS

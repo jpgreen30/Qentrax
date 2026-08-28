@@ -138,24 +138,27 @@ ALTER TABLE recommendation_implementations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY anomalies_select ON anomalies FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY anomalies_insert ON anomalies FOR INSERT
   WITH CHECK (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY anomalies_update ON anomalies FOR UPDATE
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
@@ -163,24 +166,27 @@ CREATE POLICY anomalies_update ON anomalies FOR UPDATE
 CREATE POLICY recommendations_select ON optimization_recommendations FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY recommendations_insert ON optimization_recommendations FOR INSERT
   WITH CHECK (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY recommendations_update ON optimization_recommendations FOR UPDATE
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
@@ -188,16 +194,18 @@ CREATE POLICY recommendations_update ON optimization_recommendations FOR UPDATE
 CREATE POLICY predictions_select ON predictions FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY predictions_insert ON predictions FOR INSERT
   WITH CHECK (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
@@ -205,16 +213,18 @@ CREATE POLICY predictions_insert ON predictions FOR INSERT
 CREATE POLICY reports_select ON intelligence_reports FOR SELECT
   USING (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 
 CREATE POLICY reports_insert ON intelligence_reports FOR INSERT
   WITH CHECK (
     organization_id IN (
-      SELECT organization_id FROM organization_members
-      WHERE user_id = auth.uid() AND status = 'active'
+      SELECT om.organization_id FROM organization_members om
+      JOIN users u ON om.user_id = u.id
+      WHERE u.auth_subject = auth.uid() AND om.status = 'active'
     )
   );
 

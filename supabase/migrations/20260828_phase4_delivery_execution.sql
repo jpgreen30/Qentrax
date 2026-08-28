@@ -3,6 +3,10 @@
 
 -- Extend existing deliveries table with retry policy
 alter table if exists public.deliveries
+add column if not exists transaction_id uuid references public.transactions(id) on delete cascade,
+add column if not exists opportunity_id uuid references public.opportunities(id) on delete cascade,
+add column if not exists organization_id uuid references public.organizations(id) on delete cascade,
+add column if not exists lead_data jsonb,
 add column if not exists delivery_type text default 'native', -- native or external
 add column if not exists delivery_target_id uuid, -- campaign_id or connector_id
 add column if not exists attempt_number int default 1,

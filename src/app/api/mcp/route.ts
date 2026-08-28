@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
+import * as crypto from "crypto";
 import {
   validateMCPToolAccess,
   submitOpportunityViaMCP,
@@ -11,12 +12,36 @@ import {
 
 function verifyJWT(token: string): { sub: string; org_id?: string } | null {
   try {
-    // In production, verify against MCP_JWT_SECRET
-    // For now, simple base64 decode (unsafe - for demo only)
     const parts = token.split(".");
     if (parts.length !== 3) return null;
 
+    const jwtSecret = process.env.MCP_JWT_SECRET;
+    if (jwtSecret) {
+      const signature = parts[2];
+      const message = `${parts[0]}.${parts[1]}`;
+      const expectedSignature = crypto
+        .createHmac("sha256", jwtSecret)
+        .update(message)
+        .digest("base64url");
+      if (signature !== expectedSignature) {
+        return null; // Invalid signature
+      }
+    }
+
     const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+
+    // Verify required claims
+    if (!payload.sub || typeof payload.sub !== "string") {
+      return null;
+    }
+
+    // Check expiration if present
+    if (payload.exp && typeof payload.exp === "number") {
+      if (Date.now() >= payload.exp * 1000) {
+        return null; // Token expired
+      }
+    }
+
     return { sub: payload.sub, org_id: payload.org_id };
   } catch {
     return null;
