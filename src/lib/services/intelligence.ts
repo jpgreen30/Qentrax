@@ -194,8 +194,14 @@ export async function generateOptimizationRecommendations(
     throw new Error(`Failed to fetch campaigns: ${campaignError?.message}`);
   }
 
+  // Filter anomalies to only those with supported entity types for recommendations
+  const supportedEntityTypes = ["campaign", "vertical", "product", "source"];
+  const relevantAnomalies = anomalies.filter((a) =>
+    supportedEntityTypes.includes(a.entity_type)
+  );
+
   // Based on anomalies, generate recommendations
-  for (const anomaly of anomalies) {
+  for (const anomaly of relevantAnomalies) {
     if (anomaly.anomaly_type === "bid_pattern" && anomaly.deviation_percent > 20) {
       // Recommend bid adjustment
       const campaign = campaigns[0]; // Simplified
@@ -233,7 +239,7 @@ export async function generateOptimizationRecommendations(
         recommendation_type: "strategy_change",
         priority: "high",
         target_entity: anomaly.entity_id,
-        target_entity_type: anomaly.entity_type,
+        target_entity_type: anomaly.entity_type as "campaign" | "vertical" | "product" | "source",
         current_value: anomaly.actual_value,
         recommended_value: 0.01, // Target 1% conversion
         expected_impact: 50, // Significant improvement potential
