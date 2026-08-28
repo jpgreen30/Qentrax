@@ -14,3 +14,7 @@ export { runAuction, RoutingStrategy } from "./routing";
 export type { RoutingInput, RoutingCandidate, RoutingDecision } from "./routing";
 export { recordAuctionDecision, getAuctionDecision } from "./auction-log";
 export type { RecordAuctionInput, AuctionLogRecord } from "./auction-log";
+
+// Phase 2: Native Ping/Post
+export { ping, post } from "./ping-post";
+export type { PingInput, PingResult, PostInput, PostResult } from "./ping-post";
