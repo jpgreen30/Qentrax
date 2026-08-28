@@ -3,9 +3,10 @@ import { apiOk, apiError } from "@/lib/api-utils";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params;
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -14,7 +15,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("connectors")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (error || !data) {
@@ -31,9 +32,10 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     const supabase = createClient(
@@ -67,7 +69,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from("connectors")
       .update(updateData)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -83,9 +85,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params;
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -94,7 +97,7 @@ export async function DELETE(
     const { error } = await supabase
       .from("connectors")
       .delete()
-      .eq("id", params.id);
+      .eq("id", id);
 
     if (error) throw error;
 

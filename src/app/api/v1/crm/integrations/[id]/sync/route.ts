@@ -9,8 +9,9 @@ import {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -20,7 +21,7 @@ export async function POST(
     const { data: config, error: configError } = await supabase
       .from("crm_integrations")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", id)
       .single();
 
     if (configError || !config) {
@@ -33,7 +34,7 @@ export async function POST(
     let result;
 
     if (config.platform === "hubspot") {
-      result = await syncHubSpotContacts(supabase, params.id, config);
+      result = await syncHubSpotContacts(supabase, id, config);
     } else if (config.platform === "sftp") {
       const body = await request.json();
       if (!body.csvData) {
@@ -42,9 +43,9 @@ export async function POST(
           { status: 400 }
         );
       }
-      result = await syncSftpCsv(supabase, params.id, config, body.csvData);
+      result = await syncSftpCsv(supabase, id, config, body.csvData);
     } else {
-      result = await syncCrmIntegration(supabase, params.id);
+      result = await syncCrmIntegration(supabase, id);
     }
 
     return Response.json({ success: true, data: result });
