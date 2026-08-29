@@ -118,11 +118,12 @@ describe("Step 6: MCP v2 Granular Scopes & Durable Proposals", () => {
   });
 
   it("AC-17.4: Durable proposal lifecycle is immutable", () => {
+    const now = Date.now();
     const proposal = {
       id: "prop-1",
-      created_at: new Date().toISOString(),
-      confirmed_at: new Date().toISOString(),
-      executed_at: new Date().toISOString(),
+      created_at: new Date(now).toISOString(),
+      confirmed_at: new Date(now + 1000).toISOString(),
+      executed_at: new Date(now + 2000).toISOString(),
       status: "executed" as const,
     };
 

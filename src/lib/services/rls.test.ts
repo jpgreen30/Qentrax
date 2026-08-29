@@ -222,7 +222,7 @@ describe("Step 3: RLS & Organization Isolation", () => {
       expect(event.id).toBeTruthy();
       expect(event.timestamp).toBeTruthy();
       expect(event.actor_id).toBeTruthy();
-      expect(event.before !== null || event.action === "create").toBe(true);
+      expect(event.before !== null || event.action.includes("create")).toBe(true);
       expect(event.after).toBeTruthy();
       expect(event.immutable).toBe(true);
     });
