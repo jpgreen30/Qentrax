@@ -326,7 +326,7 @@ export async function getOrganizationContext(
   const role = membership?.role || "publisher";
 
   // Determine permissions based on role
-  let permissions: MCPPermission[] = ["read"];
+  const permissions: MCPPermission[] = ["read"];
   if (role === "advertiser" || role === "admin") {
     permissions.push("write");
   }

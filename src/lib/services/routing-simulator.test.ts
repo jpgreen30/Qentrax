@@ -15,6 +15,7 @@ import {
 } from "./routing-simulator";
 
 describe("Routing Simulator — Phase 10", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSupabase: any;
   const testOrgId = "org-test-123";
   const testUserId = "user-test-123";

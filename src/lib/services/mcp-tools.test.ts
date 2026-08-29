@@ -11,6 +11,7 @@ import {
 } from "./mcp-tools";
 
 describe("MCP Tools — Phase 9", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSupabase: any;
   let mockContext: MCPContext;
 
