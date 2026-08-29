@@ -347,7 +347,7 @@ function jsonToXml(obj: Record<string, unknown>): string {
   return xml;
 }
 
-function xmlToJson(xml: string): Record<string, unknown> {
+function xmlToJson(_xml: string): Record<string, unknown> {
   // Placeholder: proper XML parsing would use DOMParser or xml2js
   // For now, return empty object
   return {};

@@ -1,6 +1,4 @@
-import type { NextRequest } from "next/server";
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   const baseUrl = process.env.MCP_PUBLIC_URL || "https://mcp.qentrax.io";
 
   const metadata = {

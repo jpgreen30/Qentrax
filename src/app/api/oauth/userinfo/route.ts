@@ -2,9 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { createHmac } from "crypto";
 
-const JWT_SECRET = process.env.MCP_JWT_SECRET || "";
+interface JwtPayload {
+  sub: string;
+  typ?: string;
+  exp?: number;
+  [key: string]: unknown;
+}
 
-function verifyJwt(token: string, secret: string): any {
+function verifyJwt(token: string, secret: string): JwtPayload {
   const parts = token.split(".");
   if (parts.length !== 3) {
     throw new Error("Invalid JWT format");
@@ -43,7 +48,7 @@ export async function GET(request: NextRequest) {
   const token = authHeader.substring(7);
 
   try {
-    const decoded = verifyJwt(token, JWT_SECRET);
+    const decoded = verifyJwt(token, process.env.MCP_JWT_SECRET || "");
 
     if (decoded.typ !== "access") {
       return Response.json(

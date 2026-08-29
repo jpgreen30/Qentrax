@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { apiOk, apiError } from "@/lib/api-utils";
-import type { ConnectorConfig } from "@/lib/connectors";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

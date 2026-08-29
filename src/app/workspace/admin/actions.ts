@@ -301,7 +301,7 @@ export async function releasePayoutBatch(formData: FormData) {
   await supabase.from("payout_items").update({ status: "paid" }).eq("batch_id", batchId);
 
   // Attempt Stripe Transfers when Connect is configured
-  let transferSummary: {
+  const transferSummary: {
     paid: number;
     skipped: number;
     failed: number;

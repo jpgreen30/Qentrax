@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
 
     switch (tool) {
       case "submit_opportunity":
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         result = await submitOpportunityViaMCP(supabase, context, params as any);
         break;
 
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case "report_conversion":
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         result = await reportConversionViaMCP(supabase, context, params as any);
         break;
 

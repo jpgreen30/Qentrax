@@ -170,7 +170,7 @@ export async function sendWebhookDelivery(
     clearTimeout(timeoutHandle);
 
     const responseText = await response.text();
-    const latency = Date.now() - startTime;
+    const _latency = Date.now() - startTime;
 
     if (response.ok) {
       // Success
@@ -274,7 +274,7 @@ export async function sendWebhookDelivery(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const latency = Date.now() - startTime;
+    const _latency = Date.now() - startTime;
 
     // Update delivery with error (ignore if update fails)
     try {

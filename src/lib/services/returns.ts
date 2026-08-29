@@ -25,17 +25,6 @@ export type ApproveReturnInput = {
   approved_by_org_id: string;
 };
 
-const RETURN_REASON_CODES = {
-  DELIVERY_FAILED: "DELIVERY_FAILED",
-  DELIVERY_TIMEOUT: "DELIVERY_TIMEOUT",
-  ADVERTISER_REJECTED: "ADVERTISER_REJECTED",
-  QUALITY_ISSUE: "QUALITY_ISSUE",
-  DUPLICATE: "DUPLICATE",
-  INVALID_DATA: "INVALID_DATA",
-  FRAUD_DETECTED: "FRAUD_DETECTED",
-  CONSUMER_COMPLAINT: "CONSUMER_COMPLAINT",
-};
-
 export async function requestReturn(
   supabase: SupabaseClient,
   input: ReturnRequestInput,

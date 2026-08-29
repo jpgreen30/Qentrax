@@ -1,16 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
-import { randomBytes, createHash } from "crypto";
-
-const JWT_SECRET = process.env.MCP_JWT_SECRET || "";
-const MCP_PUBLIC_URL = process.env.MCP_PUBLIC_URL || "https://mcp.qentrax.io";
+import { randomBytes } from "crypto";
 
 function generateAuthCode(): string {
   return randomBytes(32).toString("hex");
-}
-
-function generateCodeChallenge(codeVerifier: string): string {
-  return createHash("sha256").update(codeVerifier).digest("base64url");
 }
 
 function escapeHtml(text: string | null | undefined): string {

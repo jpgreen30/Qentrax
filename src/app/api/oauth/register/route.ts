@@ -2,8 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { randomBytes } from "crypto";
 
-const MCP_PUBLIC_URL = process.env.MCP_PUBLIC_URL || "https://mcp.qentrax.io";
-
 function generateClientId(): string {
   return `client_${randomBytes(16).toString("hex")}`;
 }

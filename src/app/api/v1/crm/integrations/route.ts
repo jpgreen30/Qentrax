@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
   const newConfig: CrmIntegrationConfig = {
     id: crypto.randomUUID(),
     organization_id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     platform: platform as any,
     name,
     status: "disconnected",

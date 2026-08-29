@@ -2,14 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
-
   try {
     const body = await request.json();
-    const { grant_type, code, refresh_token, client_id, client_secret } = body;
+    const { grant_type, code, refresh_token, client_id } = body;
 
     if (grant_type === "authorization_code") {
       if (!code || !client_id) {
@@ -80,7 +75,7 @@ export async function POST(request: NextRequest) {
       { error: "unsupported_grant_type" },
       { status: 400 }
     );
-  } catch (error) {
+  } catch {
     return Response.json(
       { error: "server_error" },
       { status: 500 }

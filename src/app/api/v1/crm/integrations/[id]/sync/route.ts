@@ -4,7 +4,6 @@ import {
   syncCrmIntegration,
   syncHubSpotContacts,
   syncSftpCsv,
-  type CrmIntegrationConfig,
 } from "@/lib/services/crm-integrations";
 
 export async function POST(

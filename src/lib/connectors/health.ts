@@ -27,7 +27,7 @@ class ConnectorHealth {
     const keyId = `${organization_id}:${connector_id}`;
 
     // Update in-memory stats
-    let stats = this.inMemoryStats.get(keyId) || this.initializeStats(connector_id);
+    const stats = this.inMemoryStats.get(keyId) || this.initializeStats(connector_id);
 
     if (success) {
       stats.consecutive_failures = 0;

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { apiOk, apiError } from "@/lib/api-utils";
-import { requestReturn, approveReturn } from "@/lib/services/returns";
+import { requestReturn } from "@/lib/services/returns";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
