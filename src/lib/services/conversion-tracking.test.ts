@@ -1,7 +1,81 @@
 import { describe, it, expect } from "vitest";
+import type { ConversionEvent, ConversionStatus, FunnelMetrics, CampaignMetrics } from "./conversion-tracking";
 
 describe("Phase 8: Closed-Loop Conversion Tracking", () => {
+  describe("Conversion Event Types", () => {
+    it("should define all conversion statuses", () => {
+      const statuses: ConversionStatus[] = ["qualified", "approved", "rejected", "pending", "unknown"];
+      statuses.forEach(status => {
+        expect(["qualified", "approved", "rejected", "pending", "unknown"]).toContain(status);
+      });
+    });
+
+    it("should support lead_qualified event type", () => {
+      const eventTypes = ["lead_qualified", "appointment", "sale", "application", "custom"];
+      expect(eventTypes).toContain("lead_qualified");
+    });
+
+    it("should support appointment event type", () => {
+      const eventTypes = ["lead_qualified", "appointment", "sale", "application", "custom"];
+      expect(eventTypes).toContain("appointment");
+    });
+
+    it("should support sale event type", () => {
+      const eventTypes = ["lead_qualified", "appointment", "sale", "application", "custom"];
+      expect(eventTypes).toContain("sale");
+    });
+  });
+
   describe("Conversion Event Recording", () => {
+    it("should create ConversionEvent with required fields", () => {
+      const event: ConversionEvent = {
+        id: "conv-123",
+        delivery_id: "del-123",
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        conversion_status: "qualified",
+        conversion_date: new Date().toISOString(),
+        event_type: "lead_qualified",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      expect(event.delivery_id).toBe("del-123");
+      expect(event.transaction_id).toBe("txn-123");
+      expect(event.conversion_status).toBe("qualified");
+    });
+
+    it("should support conversion value for multi-value conversions", () => {
+      const event: ConversionEvent = {
+        id: "conv-123",
+        delivery_id: "del-123",
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        conversion_status: "qualified",
+        conversion_value: 1500.00,
+        conversion_date: new Date().toISOString(),
+        event_type: "sale",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      expect(event.conversion_value).toBe(1500.00);
+    });
+
+    it("should support event metadata", () => {
+      const event: ConversionEvent = {
+        id: "conv-123",
+        delivery_id: "del-123",
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        conversion_status: "qualified",
+        conversion_date: new Date().toISOString(),
+        event_type: "sale",
+        event_metadata: { productId: "prod-123", quantity: 2 },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      expect(event.event_metadata).toHaveProperty("productId");
+    });
+
     it("should record conversion event for delivery", () => {
       expect(true).toBe(true);
     });

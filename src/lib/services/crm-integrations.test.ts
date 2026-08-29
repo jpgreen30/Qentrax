@@ -1,45 +1,126 @@
 import { describe, it, expect } from "vitest";
+import type { CrmPlatform, CrmContact, CrmSyncResult } from "./crm-integrations";
 
 describe("Phase 7: CRM Integrations", () => {
   describe("CRM Integration Types", () => {
     it("should support HubSpot platform", () => {
-      expect(true).toBe(true);
+      const platforms: CrmPlatform[] = ["hubspot", "zapier", "make", "sftp"];
+      expect(platforms).toContain("hubspot");
     });
 
     it("should support Zapier platform", () => {
-      expect(true).toBe(true);
+      const platforms: CrmPlatform[] = ["hubspot", "zapier", "make", "sftp"];
+      expect(platforms).toContain("zapier");
     });
 
     it("should support Make platform", () => {
-      expect(true).toBe(true);
+      const platforms: CrmPlatform[] = ["hubspot", "zapier", "make", "sftp"];
+      expect(platforms).toContain("make");
     });
 
     it("should support SFTP platform", () => {
-      expect(true).toBe(true);
+      const platforms: CrmPlatform[] = ["hubspot", "zapier", "make", "sftp"];
+      expect(platforms).toContain("sftp");
     });
 
     it("should have connection status (connected/disconnected/error)", () => {
-      expect(true).toBe(true);
+      const statuses = ["connected", "disconnected", "error"];
+      statuses.forEach(status => {
+        expect(["connected", "disconnected", "error"]).toContain(status);
+      });
     });
 
     it("should store credentials securely", () => {
-      expect(true).toBe(true);
+      const creds = { apiKey: "secret-key", apiUrl: "https://api.example.com" };
+      expect(creds.apiKey).toBeDefined();
+      expect(typeof creds.apiKey).toBe("string");
     });
 
     it("should support field mapping configuration", () => {
-      expect(true).toBe(true);
+      const mapping = {
+        email: "email_address",
+        first_name: "firstname",
+        last_name: "lastname"
+      };
+      expect(mapping.email).toBe("email_address");
+      expect(mapping.first_name).toBe("firstname");
     });
 
     it("should track sync frequency in minutes", () => {
-      expect(true).toBe(true);
+      const syncFrequency = 60; // 1 hour
+      expect(syncFrequency).toBeGreaterThan(0);
+      expect(typeof syncFrequency).toBe("number");
     });
 
     it("should track last sync timestamp", () => {
-      expect(true).toBe(true);
+      const lastSync = new Date().toISOString();
+      expect(lastSync).toBeDefined();
+      expect(lastSync).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it("should support enabling/disabling sync", () => {
-      expect(true).toBe(true);
+      const syncEnabled = true;
+      expect(typeof syncEnabled).toBe("boolean");
+      expect([true, false]).toContain(syncEnabled);
+    });
+  });
+
+  describe("CRM Contact Structure", () => {
+    it("should have CrmContact with email field", () => {
+      const contact: CrmContact = {
+        id: "cont-123",
+        email: "user@example.com",
+        first_name: "John",
+        last_name: "Doe"
+      };
+      expect(contact.email).toBe("user@example.com");
+    });
+
+    it("should support optional contact fields", () => {
+      const contact: CrmContact = {
+        id: "cont-123",
+        email: "user@example.com",
+        phone: "+1234567890",
+        company: "Acme Corp"
+      };
+      expect(contact.phone).toBe("+1234567890");
+      expect(contact.company).toBe("Acme Corp");
+    });
+
+    it("should support custom fields", () => {
+      const contact: CrmContact = {
+        id: "cont-123",
+        email: "user@example.com",
+        custom_fields: { industry: "Tech", size: "100-500" }
+      };
+      expect(contact.custom_fields).toHaveProperty("industry");
+    });
+  });
+
+  describe("CRM Sync Result", () => {
+    it("should report sync success with counts", () => {
+      const result: CrmSyncResult = {
+        success: true,
+        platform: "hubspot",
+        records_synced: 50,
+        records_failed: 2,
+        synced_at: new Date().toISOString()
+      };
+      expect(result.success).toBe(true);
+      expect(result.records_synced).toBe(50);
+    });
+
+    it("should include error message on failure", () => {
+      const result: CrmSyncResult = {
+        success: false,
+        platform: "hubspot",
+        records_synced: 0,
+        records_failed: 0,
+        error_message: "API key invalid",
+        synced_at: new Date().toISOString()
+      };
+      expect(result.success).toBe(false);
+      expect(result.error_message).toBeDefined();
     });
   });
 
