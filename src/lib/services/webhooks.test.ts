@@ -1,3 +1,5 @@
+import { describe, it, expect } from "vitest";
+
 describe("Phase 6: Webhook Infrastructure", () => {
   describe("Webhook Event Triggering", () => {
     it("should create webhook event for delivery", () => {

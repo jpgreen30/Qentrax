@@ -1,3 +1,5 @@
+import { describe, it, expect } from "vitest";
+
 describe("Phase 7: CRM Integrations", () => {
   describe("CRM Integration Types", () => {
     it("should support HubSpot platform", () => {

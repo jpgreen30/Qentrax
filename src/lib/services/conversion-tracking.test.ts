@@ -1,3 +1,5 @@
+import { describe, it, expect } from "vitest";
+
 describe("Phase 8: Closed-Loop Conversion Tracking", () => {
   describe("Conversion Event Recording", () => {
     it("should record conversion event for delivery", () => {

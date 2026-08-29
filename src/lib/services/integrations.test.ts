@@ -1,3 +1,5 @@
+import { describe, it, expect } from "vitest";
+
 describe("Phase 5: Integrations Dashboard", () => {
   describe("API Endpoints", () => {
     describe("GET /api/v1/connectors", () => {
