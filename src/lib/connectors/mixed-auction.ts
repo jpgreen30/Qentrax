@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PingRequest, ConnectorResponse, PingResponse } from "./types";
+import type { PingRequest } from "./types";
 import { pingConnector } from "./executor";
 import { connectorRegistry } from "./registry";
 import { connectorHealth } from "./health";

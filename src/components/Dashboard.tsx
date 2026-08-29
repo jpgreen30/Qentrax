@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type Role = "advertiser" | "publisher";
 
 const chartSvg = {
@@ -123,12 +125,12 @@ export default function Dashboard({ role }: { role: Role }) {
   return (
     <main className={`dash ${role}`}>
       <aside className="dashSide">
-        <a className="dashBrand" href="/">
+        <Link className="dashBrand" href="/">
           <i>Q</i>
           <span>
             QENTRAX<small>{c.portal}</small>
           </span>
-        </a>
+        </Link>
         <nav>
           {c.nav.map(([icon, label], i) => (
             <button key={label} className={i === 0 ? "active" : ""}>

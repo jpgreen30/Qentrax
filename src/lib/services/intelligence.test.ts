@@ -14,8 +14,9 @@ import {
 } from "./intelligence";
 
 describe("Qentrax Intelligence — Phase 11", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockSupabase: any;
-  const testOrgId = "org-test-123";
+  const _testOrgId = "org-test-123";
 
   beforeEach(() => {
     mockSupabase = {

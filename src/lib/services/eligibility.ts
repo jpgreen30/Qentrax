@@ -41,7 +41,7 @@ export async function checkCampaignEligibility(
   supabase: SupabaseClient,
   input: EligibilityCheckInput,
 ): Promise<EligibilityCheckResult> {
-  const { campaign_id, opportunity_id, vertical_id, product_id, consumer, attributes } = input;
+  const { campaign_id, _opportunity_id, vertical_id, product_id, _consumer, attributes } = input;
 
   // Load campaign with full targeting and eligibility config
   const { data: campaign, error: campaignError } = await supabase
@@ -253,7 +253,7 @@ async function checkCampaignBudgetAndCaps(
 /**
  * Check if opportunity falls within campaign's schedule/timezone.
  */
-function isScheduleActive(schedule: Record<string, unknown>): boolean {
+function isScheduleActive(_schedule: Record<string, unknown>): boolean {
   // Placeholder: implement based on schedule JSON structure
   // For now, assume any schedule present means active
   return true;

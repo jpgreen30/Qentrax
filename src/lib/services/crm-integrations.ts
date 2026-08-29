@@ -54,7 +54,6 @@ export async function syncHubSpotContacts(
   integrationId: string,
   config: CrmIntegrationConfig,
 ): Promise<CrmSyncResult> {
-  const startTime = Date.now();
   let recordsSynced = 0;
   let recordsFailed = 0;
 
@@ -133,7 +132,8 @@ export async function syncHubSpotContacts(
   }
 }
 
-function mapHubSpotContact(hubspotContact: any, fieldMapping: FieldMapping): CrmContact {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapHubSpotContact(hubspotContact: any, _fieldMapping: FieldMapping): CrmContact {
   const properties = hubspotContact.properties || {};
 
   return {
