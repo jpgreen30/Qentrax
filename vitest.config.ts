@@ -4,7 +4,11 @@ export default defineConfig({
   test: {
     environment: "node",
     coverage: { reporter: ["text", "json"] },
-    exclude: ["**/mcp/**/*.test.ts"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/mcp/**/*.test.ts",
+    ],
   },
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
 });
