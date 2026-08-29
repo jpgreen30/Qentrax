@@ -371,7 +371,6 @@ export async function forecastRevenue(
   const trend = recentDays.length > 1 ? (recentDays[recentDays.length - 1] - recentDays[0]) / recentDays.length : 0;
 
   const forecastedRevenue = Math.max(0, avgDaily * forecastDays + trend * forecastDays * (forecastDays / 2));
-  const confidence = Math.max(0.6, Math.min(0.9, revenueValues.length / 30)); // More data = higher confidence
 
   return {
     id: crypto.randomUUID(),
