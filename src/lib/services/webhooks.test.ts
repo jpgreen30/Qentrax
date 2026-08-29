@@ -1,6 +1,69 @@
 import { describe, it, expect } from "vitest";
+import { generateHmacSignature, verifyWebhookSignature } from "./webhooks";
 
 describe("Phase 6: Webhook Infrastructure", () => {
+  describe("Webhook Authentication", () => {
+    it("should generate HMAC signature with SHA256", () => {
+      const event = {
+        id: "evt-123",
+        event_type: "delivery.accepted" as const,
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        connector_id: "conn-123",
+        timestamp: "2026-08-29T00:00:00Z",
+        data: {}
+      };
+      const secret = "test-secret";
+      const signature = generateHmacSignature(event, secret);
+      expect(signature).toMatch(/^sha256=/);
+      expect(signature.length).toBeGreaterThan(10);
+    });
+
+    it("should verify valid HMAC signature", () => {
+      const event = {
+        id: "evt-123",
+        event_type: "delivery.accepted" as const,
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        connector_id: "conn-123",
+        timestamp: "2026-08-29T00:00:00Z",
+        data: {}
+      };
+      const secret = "test-secret";
+      const signature = generateHmacSignature(event, secret);
+      const payload = JSON.stringify(event);
+      const isValid = verifyWebhookSignature(payload, signature, secret);
+      expect(isValid).toBe(true);
+    });
+
+    it("should reject invalid HMAC signature", () => {
+      const payload = '{"id":"test"}';
+      const signature = "sha256=invalidsignature";
+      const secret = "test-secret";
+      const isValid = verifyWebhookSignature(payload, signature, secret);
+      expect(isValid).toBe(false);
+    });
+
+    it("should reject tampered payload", () => {
+      const event = {
+        id: "evt-123",
+        event_type: "delivery.accepted" as const,
+        transaction_id: "txn-123",
+        organization_id: "org-123",
+        connector_id: "conn-123",
+        timestamp: "2026-08-29T00:00:00Z",
+        data: {}
+      };
+      const secret = "test-secret";
+      const signature = generateHmacSignature(event, secret);
+
+      const tamperedEvent = { ...event, id: "evt-999" };
+      const tamperedPayload = JSON.stringify(tamperedEvent);
+      const isValid = verifyWebhookSignature(tamperedPayload, signature, secret);
+      expect(isValid).toBe(false);
+    });
+  });
+
   describe("Webhook Event Triggering", () => {
     it("should create webhook event for delivery", () => {
       expect(true).toBe(true);
