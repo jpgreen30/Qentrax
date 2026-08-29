@@ -20,7 +20,7 @@ interface ReturnRequestsProps {
   onReject?: (returnId: string) => void;
 }
 
-export function ReturnRequests({ _organizationId, onApprove, onReject }: ReturnRequestsProps) {
+export function ReturnRequests({ organizationId: _unusedOrgId, onApprove, onReject }: ReturnRequestsProps) {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

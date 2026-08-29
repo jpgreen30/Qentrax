@@ -41,7 +41,7 @@ export async function checkCampaignEligibility(
   supabase: SupabaseClient,
   input: EligibilityCheckInput,
 ): Promise<EligibilityCheckResult> {
-  const { campaign_id, _opportunity_id, vertical_id, product_id, _consumer, attributes } = input;
+  const { campaign_id, opportunity_id: _unusedOpportunityId, vertical_id, product_id, consumer: _unusedConsumer, attributes } = input;
 
   // Load campaign with full targeting and eligibility config
   const { data: campaign, error: campaignError } = await supabase
