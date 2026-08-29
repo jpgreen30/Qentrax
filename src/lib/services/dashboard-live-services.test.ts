@@ -22,7 +22,7 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
         // return await conversionService.getCampaignList(organizationId)
         return dashboardState.campaigns;
       },
-      handleCampaignUpdate: (campaignId: string, updates: any) => {
+      handleCampaignUpdate: (campaignId: string, updates: Record<string, unknown>) => {
         // On update, re-fetch fresh data from service
         dashboardState.stale = true;
         dashboardState.lastFetched = new Date().toISOString();
@@ -216,7 +216,7 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
         // Service enforces org isolation via RLS
         return {
           organization_id: organizationId,
-          conversions: [] as any[],
+          conversions: [] as Record<string, unknown>[],
         };
       },
     };
@@ -240,7 +240,7 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
     let dataVersion = 1;
 
     const conversionService = {
-      updateCampaign: async (campaignId: string, updates: any) => {
+      updateCampaign: async (campaignId: string, updates: Record<string, unknown>) => {
         dataVersion++;
         return { ...updates, version: dataVersion };
       },
@@ -255,7 +255,7 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
 
     const dashboardComponent = {
       currentVersion: 1,
-      handleEdit: async (campaignId: string, updates: any) => {
+      handleEdit: async (campaignId: string, updates: Record<string, unknown>) => {
         await conversionService.updateCampaign(campaignId, updates);
         // Re-fetch to get fresh metrics
         const metrics = await conversionService.getCampaignMetrics(campaignId);
@@ -308,7 +308,7 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
       getMetrics: async (organizationId: string) => {
         // Always fetch fresh from service
         return await fetch(`/api/v1/conversions/organization-metrics?organization_id=${organizationId}`).then(
-          (r) => r.json()
+          (r: Response) => r.json()
         );
       },
     };
@@ -329,11 +329,11 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
         // Fetch all metrics fresh on load
         const orgMetrics = await fetch(
           `/api/v1/conversions/organization-metrics?organization_id=${session.organizationId}`
-        ).then((r) => r.json());
+        ).then((r: Response) => r.json());
 
         const campaignMetrics = await fetch(
           `/api/v1/conversions/campaign-metrics?organization_id=${session.organizationId}`
-        ).then((r) => r.json());
+        ).then((r: Response) => r.json());
 
         return {
           org: orgMetrics,
@@ -350,11 +350,11 @@ describe("Step 9: Dashboard Live Services & Canonical Integration", () => {
     const websocketConnection = {
       url: "wss://api.qentrax.com/subscriptions/deliveries",
       isConnected: false,
-      messageHandlers: [] as any[],
-      onMessage: (handler: (data: any) => void) => {
+      messageHandlers: [] as ((data: Record<string, unknown>) => void)[],
+      onMessage: (handler: (data: Record<string, unknown>) => void) => {
         websocketConnection.messageHandlers.push(handler);
       },
-      simulateMessage: (data: any) => {
+      simulateMessage: (data: Record<string, unknown>) => {
         websocketConnection.messageHandlers.forEach((h) => h(data));
       },
     };

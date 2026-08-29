@@ -186,7 +186,7 @@ describe("Step 6: MCP v2 Granular Scopes & Durable Proposals", () => {
   it("AC-18.1: Dashboard, API, and MCP use canonical conversion service", () => {
     // Mock canonical conversion service
     const conversionService = {
-      record: async (data: any) => ({
+      record: async (data: Record<string, unknown>) => ({
         id: `conv-${Date.now()}`,
         ...data,
         created_at: new Date().toISOString(),
@@ -216,7 +216,7 @@ describe("Step 6: MCP v2 Granular Scopes & Durable Proposals", () => {
 
   it("AC-18.2: No direct DB access from MCP; all writes through service", () => {
     const mcpHandler = {
-      recordConversion: async (data: any) => {
+      recordConversion: async (data: Record<string, unknown>) => {
         // Should NOT do: db.from('conversions').insert(data)
         // Should DO: conversionService.record(data)
         return await conversionService.record(data);
@@ -224,7 +224,7 @@ describe("Step 6: MCP v2 Granular Scopes & Durable Proposals", () => {
     };
 
     const conversionService = {
-      record: async (data: any) => ({
+      record: async (data: Record<string, unknown>) => ({
         id: "conv-1",
         ...data,
       }),

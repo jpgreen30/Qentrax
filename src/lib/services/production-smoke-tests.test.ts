@@ -43,7 +43,7 @@ describe("Step 10: Production Smoke Tests & Safe Deployment", () => {
       "ping:write": true,
     };
 
-    const pingHandler = async (body: any) => {
+    const pingHandler = async (body: Record<string, unknown>) => {
       if (!featureFlags["ping:write"]) {
         return {
           ok: false,
@@ -76,7 +76,7 @@ describe("Step 10: Production Smoke Tests & Safe Deployment", () => {
       "webhooks:write": true,
     };
 
-    const postHandler = async (body: any) => {
+    const postHandler = async (body: Record<string, unknown>) => {
       if (!featureFlags["post:write"]) {
         return {
           ok: false,
@@ -110,7 +110,7 @@ describe("Step 10: Production Smoke Tests & Safe Deployment", () => {
       "conversions:write": true,
     };
 
-    const recordConversion = async (body: any) => {
+    const recordConversion = async (body: Record<string, unknown>) => {
       if (!featureFlags["conversions:write"]) {
         return {
           success: false,
@@ -373,7 +373,7 @@ describe("Step 10: Production Smoke Tests & Safe Deployment", () => {
 
   it("AC-15.4: Audit logging is active for all writes", () => {
     const auditLog = {
-      entries: [] as any[],
+      entries: [] as { action: string; resource: string; actor: string; timestamp: string }[],
       log: (action: string, resource: string, actor: string) => {
         auditLog.entries.push({
           action,
