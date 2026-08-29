@@ -18,12 +18,15 @@ export function generateStaticParams(){return Object.keys(articles).map(slug=>({
 export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{const {slug}=await params;const a=articles[slug];if(!a)return {};return {title:`${a.title} | Qentrax Field Notes`,description:a.description};}
 
 export default async function ArticlePage({params}:{params:Promise<{slug:string}>}){const {slug}=await params;const article=articles[slug];if(!article)notFound();return <main className="blogPage">
+ {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
  <nav className="blogNav shell"><Link className="brand" href="/"><i>Q</i>QENTRAX</Link><div><Link href="/">Marketplace</Link><Link href="/blog">Field Notes</Link><a href="/#company">Company</a><a href="/#contact">Contact</a></div><a className="blogNavCta" href="/#network">ENTER NETWORK ↗</a></nav>
  <article className="shell" style={{maxWidth:900,paddingTop:90,paddingBottom:120}}>
   <Link href="/blog" style={{font:"10px var(--mono)",letterSpacing:'.12em',color:"var(--acid)"}}>← ALL FIELD NOTES</Link>
   <header style={{padding:"50px 0 55px",borderBottom:"1px solid var(--line)"}}><label>{article.category} · {article.read} READ</label><h1 style={{fontSize:"clamp(48px,6vw,78px)",maxWidth:850}}>{article.title}</h1><p className="lede">{article.description}</p><p style={{font:"9px var(--mono)",color:"#718287",marginTop:28}}>QENTRAX RESEARCH · AUGUST 2026</p></header>
   <div style={{maxWidth:720,margin:"55px auto 0"}}><p style={{fontSize:21,lineHeight:1.7,color:"#c8d1cf",marginBottom:55}}>{article.intro}</p>{article.sections.map((s,i)=><section key={s.heading} style={{padding:"38px 0",borderTop:"1px solid var(--line)"}}><label>0{i+1} / FIELD NOTE</label><h2 style={{fontSize:"clamp(30px,4vw,44px)"}}>{s.heading}</h2>{s.body.map(p=><p key={p} style={{fontSize:16,lineHeight:1.85,color:"#9daaad"}}>{p}</p>)}</section>)}</div>
+  {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
   <aside style={{marginTop:70,padding:"45px",background:"var(--acid)",color:"#071014"}}><label style={{color:"#071014"}}>QENTRAX DEMAND EXCHANGE</label><h2>Put the intelligence into the transaction.</h2><p style={{maxWidth:650,lineHeight:1.65}}>Connect as a buyer or publisher and bring validation, buyer-fit rules, routing and feedback into one demand workflow.</p><a className="dark" href="/#network" style={{display:"inline-flex",marginTop:15}}>ENTER THE NETWORK ↗</a></aside>
  </article>
+ {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
  <footer className="blogFooter sitefoot shell"><Link className="brand" href="/"><i>Q</i>QENTRAX</Link><p>The AI-native marketplace for consumer demand.</p><div><Link href="/blog">Blog</Link><a href="/#company">Company</a><a href="/#contact">Contact</a></div><small>© 2026 QENTRAX, INC. · ALL SYSTEMS OPERATIONAL</small></footer>
  </main>}

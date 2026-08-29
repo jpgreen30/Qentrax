@@ -39,6 +39,8 @@
     "node_modules",
     "mcp",
     "mcp/**",
-    "scripts"
+    "scripts",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

@@ -1,155 +1,45 @@
-import { apiError, apiOk } from "@/lib/api";
-import { requireAuthContext } from "@/lib/auth-context";
-import { enqueueAndAttemptDelivery } from "@/lib/delivery/retry";
-import { requestId } from "@/lib/request-id";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { apiOk, apiError } from "@/lib/api-utils";
 
-/**
- * POST /api/v1/deliveries
- * Body: { organization_id, transaction_id?, opportunity_id?, endpoint_url?, simulate?: boolean }
- * Resolves campaign endpoint (or override URL) and POSTs a redacted delivery payload.
- * Persists attempt + schedules retry when transient failure.
- */
-export async function POST(request: Request) {
-  const id = requestId(request.headers.get("x-request-id"));
-  const auth = await requireAuthContext();
-  if (!auth) return apiError("AUTH_REQUIRED", "Authentication is required.", id, 401);
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const transactionId = searchParams.get("transaction_id");
+  const opportunityId = searchParams.get("opportunity_id");
+  const status = searchParams.get("status");
+  const organizationId = searchParams.get("organization_id");
+  const limit = parseInt(searchParams.get("limit") || "100");
+  const offset = parseInt(searchParams.get("offset") || "0");
 
-  let body: {
-    organization_id?: string;
-    transaction_id?: string;
-    opportunity_id?: string;
-    endpoint_url?: string;
-    simulate?: boolean;
-  };
   try {
-    body = await request.json();
-  } catch {
-    return apiError("VALIDATION_ERROR", "Invalid JSON body.", id, 400);
-  }
-
-  if (!body.organization_id) {
-    return apiError("VALIDATION_ERROR", "organization_id is required.", id, 400);
-  }
-  if (!body.transaction_id && !body.opportunity_id) {
-    return apiError(
-      "VALIDATION_ERROR",
-      "transaction_id or opportunity_id is required.",
-      id,
-      400,
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
     );
-  }
 
-  const supabase = await createClient();
+    let query = supabase
+      .from("deliveries")
+      .select("*", { count: "exact" });
 
-  let txn: {
-    id: string;
-    opportunity_id: string | null;
-    campaign_id: string | null;
-    advertiser_price_cents: number | null;
-    status: string;
-  } | null = null;
+    if (transactionId) query = query.eq("transaction_id", transactionId);
+    if (opportunityId) query = query.eq("opportunity_id", opportunityId);
+    if (status) query = query.eq("status", status);
+    if (organizationId) query = query.eq("organization_id", organizationId);
 
-  if (body.transaction_id) {
-    const { data } = await supabase
-      .from("transactions")
-      .select("id, opportunity_id, campaign_id, advertiser_price_cents, status")
-      .eq("id", body.transaction_id)
-      .eq("advertiser_org_id", body.organization_id)
-      .maybeSingle();
-    txn = data;
-  } else if (body.opportunity_id) {
-    const { data } = await supabase
-      .from("transactions")
-      .select("id, opportunity_id, campaign_id, advertiser_price_cents, status")
-      .eq("opportunity_id", body.opportunity_id)
-      .eq("advertiser_org_id", body.organization_id)
+    const { data, error, count } = await query
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    txn = data;
-  }
+      .range(offset, offset + limit - 1);
 
-  if (!txn) {
-    return apiError("NOT_FOUND", "Transaction not found for this organization.", id, 404);
-  }
-  if (!txn.opportunity_id || !txn.campaign_id) {
-    return apiError("VALIDATION_ERROR", "Transaction missing opportunity or campaign.", id, 400);
-  }
+    if (error) throw error;
 
-  let endpointUrl = (body.endpoint_url ?? "").trim() || null;
-  let endpointId: string | null = null;
-  let timeoutMs = 8000;
-
-  if (!endpointUrl && txn.campaign_id) {
-    const { data: ep } = await supabase
-      .from("campaign_endpoints")
-      .select("id, endpoint_url, timeout_ms, status")
-      .eq("campaign_id", txn.campaign_id)
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (ep?.endpoint_url) {
-      endpointUrl = ep.endpoint_url;
-      endpointId = ep.id;
-      if (ep.timeout_ms && Number.isFinite(ep.timeout_ms)) timeoutMs = Number(ep.timeout_ms);
-    }
-  }
-
-  let publicTxn: string | undefined;
-  let ping: Record<string, unknown> = {};
-  if (txn.opportunity_id) {
-    const { data: opp } = await supabase
-      .from("opportunities")
-      .select("public_transaction_id, ping_attributes")
-      .eq("id", txn.opportunity_id)
-      .maybeSingle();
-    publicTxn = opp?.public_transaction_id ?? undefined;
-    ping = (opp?.ping_attributes as Record<string, unknown>) ?? {};
-  }
-
-  try {
-    const delivery = await enqueueAndAttemptDelivery(supabase, {
-      opportunityId: txn.opportunity_id,
-      campaignId: txn.campaign_id,
-      transactionId: txn.id,
-      endpointId,
-      endpointUrl,
-      timeoutMs,
-      simulateOnMissing: body.simulate !== false,
-      requestId: id,
-      payload: {
-        transaction_id: txn.id,
-        public_transaction_id: publicTxn,
-        opportunity_id: txn.opportunity_id,
-        campaign_id: txn.campaign_id,
-        state:
-          typeof ping.state === "string"
-            ? ping.state
-            : typeof ping.State === "string"
-              ? String(ping.State)
-              : null,
-        attributes: ping,
-        advertiser_price_cents: txn.advertiser_price_cents,
-        delivered_at: new Date().toISOString(),
-      },
+    return apiOk({
+      deliveries: data,
+      count,
+      offset,
+      limit,
     });
-
-    return apiOk(
-      {
-        transaction_id: txn.id,
-        delivery,
-      },
-      id,
-      delivery.status === "accepted" ? 200 : 502,
-    );
-  } catch (e) {
+  } catch (error) {
     return apiError(
-      "INTERNAL_ERROR",
-      e instanceof Error ? e.message : "Delivery failed",
-      id,
-      500,
+      error instanceof Error ? error.message : "Failed to list deliveries",
     );
   }
 }

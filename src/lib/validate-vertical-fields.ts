@@ -184,7 +184,7 @@ export async function loadFieldSchemas(
   verticalCode: string,
   productCode?: string | null,
 ): Promise<FieldSchemaRow[]> {
-  let q = supabase
+  const q = supabase
     .from("vertical_field_schemas")
     .select(
       "vertical_code, product_code, phase, field_key, label, data_type, required, pii, enum_values_json",

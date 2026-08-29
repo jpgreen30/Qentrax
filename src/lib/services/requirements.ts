@@ -67,7 +67,7 @@ export async function getRequirements(
     };
   }
 
-  let schemaQuery = supabase
+  const schemaQuery = supabase
     .from("vertical_field_schemas")
     .select(
       "field_key, label, phase, data_type, required, pii, enum_values_json, description, product_code, sort_order",

@@ -1,4 +1,4 @@
-import { publicBaseUrl, mcpResourceUrl, SCOPES } from "../lib/config.js";
+import { mcpResourceUrl, SCOPES } from "../lib/config.js";
 
 export function protectedResourceMetadata(base: string) {
   const resource = mcpResourceUrl(base);

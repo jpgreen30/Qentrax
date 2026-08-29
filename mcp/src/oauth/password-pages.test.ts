@@ -2,4 +2,42 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { authorizeReturnHref, forgotPasswordHtml } from "./password-pages.js";
 import { passwordResetRedirectUrl } from "./password-reset.js";
-describe("password reset helpers",()=>{it("passwordResetRedirectUrl is under MCP public base",()=>assert.equal(passwordResetRedirectUrl("https://mcp.qentrax.io"),"https://mcp.qentrax.io/oauth/reset-password"));it("authorizeReturnHref rebuilds OAuth authorize URL",()=>{const h=authorizeReturnHref({client_id:"abc",redirect_uri:"https://chatgpt.com/connector/oauth/cb",code_challenge:"xyz",code_challenge_method:"S256",state:"s1"});assert.ok(h?.startsWith("/oauth/authorize?"));assert.ok(h?.includes("client_id=abc"));assert.ok(h?.includes("code_challenge=xyz"))});it("forgotPasswordHtml includes generic success copy",()=>{const h=forgotPasswordHtml({},{ok:"If an account exists for that email, we sent a password reset link. Check your inbox."});assert.ok(h.includes("Check your email"));assert.ok(h.includes("If an account exists"))});it("forgotPasswordHtml does not hardcode reviewer emails",()=>{const h=forgotPasswordHtml({});assert.ok(!h.includes("reviewer1@"));assert.ok(!h.includes("reviewer@"))})});
+
+describe("password reset helpers", () => {
+  it("passwordResetRedirectUrl is under MCP public base", () =>
+    assert.equal(
+      passwordResetRedirectUrl("https://mcp.qentrax.io"),
+      "https://mcp.qentrax.io/oauth/reset-password"
+    )
+  );
+
+  it("authorizeReturnHref rebuilds OAuth authorize URL", () => {
+    const h = authorizeReturnHref({
+      client_id: "abc",
+      redirect_uri: "https://chatgpt.com/connector/oauth/cb",
+      code_challenge: "xyz",
+      code_challenge_method: "S256",
+      state: "s1",
+    });
+    assert.ok(h?.startsWith("/oauth/authorize?"));
+    assert.ok(h?.includes("client_id=abc"));
+    assert.ok(h?.includes("code_challenge=xyz"));
+  });
+
+  it("forgotPasswordHtml includes generic success copy", () => {
+    const h = forgotPasswordHtml(
+      {},
+      {
+        ok: "If an account exists for that email, we sent a password reset link. Check your inbox.",
+      }
+    );
+    assert.ok(h.includes("Check your email"));
+    assert.ok(h.includes("If an account exists"));
+  });
+
+  it("forgotPasswordHtml does not hardcode reviewer emails", () => {
+    const h = forgotPasswordHtml({});
+    assert.ok(!h.includes("reviewer1@"));
+    assert.ok(!h.includes("reviewer@"));
+  });
+});

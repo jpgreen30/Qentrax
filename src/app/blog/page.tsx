@@ -22,10 +22,14 @@ export default function BlogPage(){
         <Link className="brand" href="/"><i>Q</i>QENTRAX</Link>
         <div>
           <Link href="/">Marketplace</Link>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#case-studies">Case Studies</a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#company">Company</a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#contact">Contact</a>
         </div>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a className="blogNavCta" href="/#network">ENTER NETWORK ↗</a>
       </nav>
 
@@ -112,10 +116,14 @@ export default function BlogPage(){
         <Link className="brand" href="/"><i>Q</i>QENTRAX</Link>
         <p>The AI-native marketplace for consumer demand.</p>
         <div>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#platform">Platform</a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#case-studies">Case Studies</a>
           <Link href="/blog">Blog</Link>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#about">About</a>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/#contact">Contact</a>
         </div>
         <small>© 2026 QENTRAX, INC. · ALL SYSTEMS OPERATIONAL</small>
