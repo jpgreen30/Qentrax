@@ -1,3 +1,4 @@
+import { PAYABLE_STATUSES } from "@/lib/reporting/transaction-status";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requestId } from "@/lib/request-id";
 
@@ -109,7 +110,7 @@ export async function runScheduledPayout(
   const { data: txns, error: txnErr } = await supabase
     .from("transactions")
     .select("id, publisher_org_id, publisher_amount_cents, status, created_at")
-    .eq("status", "billable")
+    .in("status", [...PAYABLE_STATUSES])
     .lte("created_at", cutoffIso)
     .order("created_at", { ascending: true })
     .limit(1000);

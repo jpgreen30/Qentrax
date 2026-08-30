@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import { apiError, apiOk } from "@/lib/api";
 import { enqueueAndAttemptDelivery } from "@/lib/delivery/retry";
 import { allowSimulatedDelivery } from "@/lib/env";
@@ -262,7 +263,7 @@ export async function POST(request: Request) {
       : auctionResult;
 
     const ar = auction as { status?: string; campaign_id?: string; transaction_id?: string } | null;
-    if (ar && typeof ar === "object" && ar.campaign_id && ar.status === "billable") {
+    if (ar && typeof ar === "object" && ar.campaign_id && isBillable(ar.status as string)) {
       const { data: ep } = await supabaseClient
         .from("campaign_endpoints")
         .select("id, endpoint_url, timeout_ms")

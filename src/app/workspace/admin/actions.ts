@@ -1,4 +1,5 @@
 "use server";
+import { PAYABLE_STATUSES } from "@/lib/reporting/transaction-status";
 
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/lib/auth-context";
@@ -163,7 +164,7 @@ export async function createPayoutBatch(formData: FormData) {
   const { data: txns } = await supabase
     .from("transactions")
     .select("id, publisher_org_id, publisher_amount_cents, status, created_at")
-    .eq("status", "billable")
+    .in("status", [...PAYABLE_STATUSES])
     .order("created_at", { ascending: true })
     .limit(500);
 

@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 /**
  * Performance query — non-destructive read of existing transaction/reporting data.
  * Does NOT create records or call external networks.
@@ -99,7 +100,7 @@ export async function getPerformance(
   for (const r of filtered) {
     const st = String(r.status ?? "unknown");
     by_status[st] = (by_status[st] ?? 0) + 1;
-    if (st === "billable" || st === "settled") {
+    if (isBillable(st)) {
       billable += 1;
       revenue += Number((r as Record<string, unknown>)[amountCol] ?? 0);
     } else if (

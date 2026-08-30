@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
 
@@ -54,7 +55,7 @@ export default async function PublisherReports({
     .limit(200);
 
   const earnings = (txns ?? []).reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
-  const billable = (txns ?? []).filter((t) => t.status === "billable").length;
+  const billable = (txns ?? []).filter((t) => isBillable(t.status)).length;
   const submitted = (opps ?? []).length;
   const acceptance = submitted ? Math.round((billable / submitted) * 1000) / 10 : 0;
 

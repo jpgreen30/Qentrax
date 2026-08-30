@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import Link from "next/link";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { money, requireAdmin } from "@/lib/workspace-data";
@@ -48,7 +49,7 @@ export default async function AdminNetwork() {
     ["profile_submitted", "under_review", "needs_information"].includes(o.onboarding_status),
   ).length;
 
-  const billable = (txns ?? []).filter((t) => t.status === "billable");
+  const billable = (txns ?? []).filter((t) => isBillable(t.status));
   const gmv = billable.reduce((s, t) => s + (t.advertiser_price_cents ?? 0), 0);
   const publisherShare = billable.reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
   const platformMargin = gmv - publisherShare;

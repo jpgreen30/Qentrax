@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { isStripeConfigured } from "@/lib/stripe/client";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
@@ -48,10 +49,10 @@ export default async function PublisherEarnings({
     : { data: [] as { id: string; direction: string; amount_cents: number; occurred_at: string }[] };
 
   const pending = (txns ?? [])
-    .filter((t) => t.status === "billable")
+    .filter((t) => isBillable(t.status))
     .reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
 
-  const billableCount = (txns ?? []).filter((t) => t.status === "billable").length;
+  const billableCount = (txns ?? []).filter((t) => isBillable(t.status)).length;
   const connectStatus = (orgFull?.stripe_connect_status ?? "not_started").toUpperCase();
   const payoutsOk = !!orgFull?.stripe_payouts_enabled;
 

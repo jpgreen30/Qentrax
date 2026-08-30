@@ -56,3 +56,17 @@
   .tableHead.audit,.tableRow.audit{grid-template-columns:1fr 1fr}
   .tableHead.audit span:nth-child(n+3),.tableRow.audit span:nth-child(n+3){display:none}
 }
+
+/* Reporting range controls and real-data empty states (Phase 10). */
+.reportControls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 18px}
+.rangeTabs{display:inline-flex;border:1px solid #23383c;border-radius:8px;overflow:hidden}
+.rangeTab{padding:7px 14px;font-size:11px;letter-spacing:.08em;color:#8fa3a8;text-decoration:none;background:#0e1a1d;border-right:1px solid #23383c}
+.rangeTab:last-child{border-right:0}
+.rangeTab.active{background:#caff4b;color:#08211f;font-weight:600}
+.rangeMeta{color:#6a7c80;font-size:12px}
+.rangeExport{margin-left:auto;font-size:11px;letter-spacing:.08em;color:#caff4b;text-decoration:none;border:1px solid #23383c;border-radius:8px;padding:7px 14px}
+.rangeExport:hover{border-color:#caff4b}
+.emptyState{padding:38px 18px;text-align:center;color:#6a7c80}
+.emptyState p{margin:0 0 6px;color:#8fa3a8;font-size:14px}
+.emptyState small{font-size:12px}
+.metricsNote code{background:#0e1a1d;border:1px solid #23383c;border-radius:4px;padding:1px 5px;font-size:11px;color:#caff4b}

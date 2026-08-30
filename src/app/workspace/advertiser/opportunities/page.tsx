@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
 import { recordDisposition } from "../actions";
@@ -39,7 +40,7 @@ export default async function AdvertiserOpportunities({
   const oppMap = new Map((opps ?? []).map((o) => [o.id, o]));
   const { data: verticals } = await supabase.from("verticals").select("id, name");
   const vMap = new Map((verticals ?? []).map((v) => [v.id, v.name]));
-  const billableTxns = (txns ?? []).filter((t) => t.status === "billable");
+  const billableTxns = (txns ?? []).filter((t) => isBillable(t.status));
 
   return (
     <WorkspaceShell

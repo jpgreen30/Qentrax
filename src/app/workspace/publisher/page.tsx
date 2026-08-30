@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import WorkspaceDashboard from "@/components/WorkspaceDashboard";
@@ -64,7 +65,7 @@ export default async function PublisherWorkspace({
   const oppMap = new Map((opps ?? []).map((o) => [o.id, o.public_transaction_id]));
 
   const earnings = (txns ?? []).reduce((s, t) => s + (t.publisher_amount_cents ?? 0), 0);
-  const billable = (txns ?? []).filter((t) => t.status === "billable").length;
+  const billable = (txns ?? []).filter((t) => isBillable(t.status)).length;
 
   const rows = (txns ?? []).map((t) => ({
     id: (t.opportunity_id && oppMap.get(t.opportunity_id)) || t.id.slice(0, 8),

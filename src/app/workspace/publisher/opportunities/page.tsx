@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { initials, money, requireOrg } from "@/lib/workspace-data";
 
@@ -57,7 +58,7 @@ export default async function PublisherOpportunities({
             <span>BILLABLE</span>
             <i>◎</i>
           </header>
-          <strong>{(txns ?? []).filter((t) => t.status === "billable").length}</strong>
+          <strong>{(txns ?? []).filter((t) => isBillable(t.status)).length}</strong>
           <small>ACCEPTED</small>
         </article>
         <article>

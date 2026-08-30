@@ -1,3 +1,4 @@
+import { PAYABLE_STATUSES } from "@/lib/reporting/transaction-status";
 import Link from "next/link";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { money, requireAdmin } from "@/lib/workspace-data";
@@ -25,7 +26,7 @@ export default async function AdminFinance({
         .select(
           "id, publisher_org_id, publisher_amount_cents, advertiser_price_cents, status, created_at",
         )
-        .eq("status", "billable")
+        .in("status", [...PAYABLE_STATUSES])
         .order("created_at", { ascending: false })
         .limit(400),
       supabase

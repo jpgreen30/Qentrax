@@ -1,3 +1,4 @@
+import { isBillable } from "@/lib/reporting/transaction-status";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import WorkspaceDashboard from "@/components/WorkspaceDashboard";
@@ -76,7 +77,7 @@ export default async function AdvertiserWorkspace({
 
   const bal = Number(balance ?? 0);
   const spend = (txns ?? []).reduce((s, t) => s + (t.advertiser_price_cents ?? 0), 0);
-  const accepted = (txns ?? []).filter((t) => t.status === "billable").length;
+  const accepted = (txns ?? []).filter((t) => isBillable(t.status)).length;
   const activeCampaigns = (campaigns ?? []).filter((c) => c.status === "active").length;
 
   const rows = (txns ?? []).map((t) => ({
