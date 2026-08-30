@@ -165,7 +165,7 @@ async function createDeliveredCampaign(page: Page, integrationId: string) {
     hasText: DELIVERED_CAMPAIGN_NAME,
   });
   await expect(deliveredRow).toBeVisible();
-  await expect(deliveredRow).toContainText("LIVE");
+  await expect(deliveredRow).toContainText("ACTIVE");
 }
 
 async function createPublisherSource(page: Page): Promise<string> {
