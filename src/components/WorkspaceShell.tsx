@@ -27,6 +27,7 @@ const NAV: Record<
     { icon: "⌂", label: "Approvals", path: "" },
     { icon: "▦", label: "Network", path: "/network" },
     { icon: "◈", label: "Verticals", path: "/verticals" },
+    { icon: "◇", label: "Offers", path: "/offers" },
     { icon: "◎", label: "Organizations", path: "/organizations" },
     { icon: "$", label: "Finance", path: "/finance" },
     { icon: "⌁", label: "Audit", path: "/audit" },
