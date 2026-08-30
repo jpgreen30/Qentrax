@@ -25,7 +25,7 @@ fi
 psql -q -d qentrax -c "alter role authenticator login; grant anon, authenticated, service_role to authenticator;"
 psql -q -v ON_ERROR_STOP=1 -d qentrax -f "$ROOT/e2e/harness/seed.sql"
 
-"$PGRST_BIN" "$ROOT/e2e/harness/postgrest.conf" > /var/tmp/pgrst.log 2>&1 &
+(cd "$ROOT/e2e/harness" && "$PGRST_BIN" postgrest.conf) > /var/tmp/pgrst.log 2>&1 &
 node "$ROOT/e2e/harness/gateway.mjs" > /var/tmp/gateway.log 2>&1 &
 
 for _ in $(seq 1 30); do
