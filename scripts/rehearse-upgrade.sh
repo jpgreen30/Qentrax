@@ -605,7 +605,7 @@ from public.reserve_campaign_transaction(
   'upgrade-idem-1'
 );
 \gset
-select public.finalize_campaign_transaction(:transaction_id, '$DELIVERY_ID', true, 'BUYER_ACCEPTED');
+select public.finalize_campaign_transaction(:'transaction_id'::uuid, '$DELIVERY_ID', true, 'BUYER_ACCEPTED');
 SQL
 }
 
