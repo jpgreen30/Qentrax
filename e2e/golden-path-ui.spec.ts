@@ -35,6 +35,7 @@ const OFFER_NAME = `E2E California Solar Exclusive ${RUN}`;
 const CAMPAIGN_NAME = `E2E CA Solar Buy ${RUN}`;
 const SOURCE_NAME = `E2E Source ${RUN}`;
 const INTEGRATION_NAME = `E2E Webhook ${RUN}`;
+const DELIVERED_CAMPAIGN_NAME = `${CAMPAIGN_NAME} routed`;
 const BUYER_ENDPOINT = `http://buyer.qentrax.test/api/e2e/buyer`;
 const PING_EXTERNAL_ID = `e2e-ping-${RUN}`;
 const POST_EXTERNAL_ID = `e2e-post-${RUN}`;
@@ -144,7 +145,7 @@ async function createDeliveredCampaign(page: Page, integrationId: string) {
   await page.getByRole("link", { name: /CREATE CAMPAIGN/ }).click();
   await expect(page.getByRole("heading", { name: "New campaign" })).toBeVisible();
 
-  await page.locator('input[name="name"]').fill(CAMPAIGN_NAME);
+  await page.locator('input[name="name"]').fill(DELIVERED_CAMPAIGN_NAME);
   await page.locator('input[name="base_bid"]').fill("45.00");
   await page.locator('select[name="pacing"]').selectOption("EVEN");
   await page.locator('input[name="states"]').fill("CA");
@@ -161,10 +162,10 @@ async function createDeliveredCampaign(page: Page, integrationId: string) {
   await page.getByRole("button", { name: "ACTIVATE CAMPAIGN" }).click();
   await expect(page).toHaveURL(/\/workspace\/advertiser\/campaigns\?org=/);
   const deliveredRow = page.locator(".tableRow.campaigns", {
-    hasText: `${CAMPAIGN_NAME} delivered`,
+    hasText: DELIVERED_CAMPAIGN_NAME,
   });
   await expect(deliveredRow).toBeVisible();
-  await expect(deliveredRow).toContainText("Live");
+  await expect(deliveredRow).toContainText("LIVE");
 }
 
 async function createPublisherSource(page: Page): Promise<string> {
