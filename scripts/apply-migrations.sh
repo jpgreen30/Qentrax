@@ -29,10 +29,20 @@ alter role service_role bypassrls;
 create extension if not exists pgcrypto;
 create schema if not exists auth;
 
+-- Matches the real Supabase definitions: PostgREST sets request.jwt.claims as
+-- a single JSON blob, while the flattened request.jwt.claim.* GUCs are what a
+-- direct psql session can set. Both paths are supported so the SQL tests and
+-- the PostgREST-backed browser suite exercise the same policies.
 create or replace function auth.uid() returns uuid language sql stable as
-  $fn$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $fn$;
+  $fn$ select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+  )::uuid $fn$;
 create or replace function auth.role() returns text language sql stable as
-  $fn$ select nullif(current_setting('request.jwt.claim.role', true), '') $fn$;
+  $fn$ select coalesce(
+    nullif(current_setting('request.jwt.claim.role', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+  ) $fn$;
 
 -- Supabase grants these to the request roles; the stub must match or RLS
 -- policies calling auth.uid() fail with "permission denied for schema auth".

@@ -260,6 +260,28 @@ begin
   -- Archiving is the one status change a published version still allows.
   update offer_versions set status = 'archived' where id = v_ov.id;
 
+  ---------------------------------------------------------------------------
+  -- A draft version can be deleted, taking its fields with it. The field
+  -- trigger must not block its own cascade: the parent version row is already
+  -- gone by the time the row trigger fires.
+  ---------------------------------------------------------------------------
+  declare
+    v_drop vertical_schema_versions;
+    v_left int;
+  begin
+    update vertical_schema_versions set status = 'archived' where id = v_draft2.id;
+    v_drop := create_vertical_schema_draft('10000000-0000-0000-0000-000000000001', null, 'scratch');
+    insert into vertical_fields (schema_version_id, field_key, label, field_type)
+      values (v_drop.id, 'scratch_field', 'Scratch', 'text');
+
+    delete from vertical_schema_versions where id = v_drop.id;
+
+    select count(*) into v_left from vertical_fields where schema_version_id = v_drop.id;
+    if v_left <> 0 then
+      raise exception 'deleting a draft version left % orphaned fields', v_left;
+    end if;
+  end;
+
   raise notice 'offer_schema_versioning: PASS';
 end $$;
 

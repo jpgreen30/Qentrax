@@ -32,8 +32,10 @@ export async function createVertical(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim() || null;
 
   if (!code || !name) back(null, ["Code and name are required."]);
-  if (!/^[a-z][a-z0-9_]{1,62}$/.test(code)) {
-    back(null, ["Code must be lowercase letters, digits and underscores."]);
+  // Mirrors the verticals_code_check CHECK constraint, which admits lowercase
+  // letters and underscores only — no digits.
+  if (!/^[a-z_]+$/.test(code)) {
+    back(null, ["Code must be lowercase letters and underscores only."]);
   }
 
   const { data, error } = await supabase

@@ -7,3 +7,11 @@ coverage/
 *.tsbuildinfo
 .vercel/
 docs/design-reference/*.png
+
+# E2E harness: generated locally, never committed
+e2e/harness/jwt-private.pem
+e2e/harness/jwks.json
+/test-results/
+/e2e-report/
+/playwright-report/
+.env.local
