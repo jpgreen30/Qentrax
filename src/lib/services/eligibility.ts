@@ -31,6 +31,9 @@ export type EligibilityCheckResult = {
   reason_detail?: string;
   bid_cents?: number;
   bid_type?: string;
+  weight?: number;
+  priority?: number;
+  remaining_capacity?: number | null;
 };
 
 /**
@@ -61,6 +64,8 @@ export async function checkCampaignEligibility(
       daily_cap,
       hourly_cap,
       targeting_json,
+      routing_weight,
+      routing_priority,
       campaign_versions(id, version, eligibility_json, targeting_json, schedule_json, cap_config_json)
     `,
     )
@@ -143,7 +148,7 @@ export async function checkCampaignEligibility(
   }
 
   // Check daily/monthly budget and caps
-  const { budgetCheck } = await checkCampaignBudgetAndCaps(supabase, campaign_id, campaign);
+  const { budgetCheck, remainingCapacity } = await checkCampaignBudgetAndCaps(supabase, campaign_id, campaign);
   if (!budgetCheck.eligible) {
     return {
       eligible: false,
@@ -167,6 +172,9 @@ export async function checkCampaignEligibility(
     eligible: true,
     bid_cents: campaign.base_bid_cents,
     bid_type: campaign.bid_type || "fixed",
+    weight: Number(campaign.routing_weight) || 100,
+    priority: Number(campaign.routing_priority) || 100,
+    remaining_capacity: remainingCapacity,
   };
 }
 
@@ -183,7 +191,7 @@ async function checkCampaignBudgetAndCaps(
   // Check daily usage
   const { data: dailyUsage } = await supabase
     .from("campaign_daily_usage")
-    .select("charged_cents, reserved_cents")
+    .select("charged_cents, reserved_cents, accepted_count")
     .eq("campaign_id", campaignId)
     .eq("usage_date", today)
     .maybeSingle();
@@ -191,6 +199,8 @@ async function checkCampaignBudgetAndCaps(
   const dailyChargedCents = (dailyUsage?.charged_cents as number) || 0;
   const dailyReservedCents = (dailyUsage?.reserved_cents as number) || 0;
   const dailySpentCents = dailyChargedCents + dailyReservedCents;
+  const dailyAcceptedCount = Number(dailyUsage?.accepted_count) || 0;
+  let remainingCapacity: number | null = null;
 
   if (campaign.daily_budget_cents) {
     if ((dailySpentCents as number) >= (campaign.daily_budget_cents as number)) {
@@ -212,7 +222,9 @@ async function checkCampaignBudgetAndCaps(
       .gte("created_at", `${today}T00:00:00Z`)
       .lte("created_at", `${today}T23:59:59Z`);
 
-    if ((dailyDeliveryCount || 0) >= (campaign.daily_cap as number)) {
+    const deliveredToday = Math.max(dailyDeliveryCount || 0, dailyAcceptedCount);
+    remainingCapacity = Math.max(0, Number(campaign.daily_cap) - deliveredToday);
+    if (remainingCapacity === 0) {
       return {
         budgetCheck: {
           eligible: false,
@@ -232,7 +244,15 @@ async function checkCampaignBudgetAndCaps(
       .eq("campaign_id", campaignId)
       .gte("created_at", oneHourAgo);
 
-    if ((hourlyDeliveryCount || 0) >= (campaign.hourly_cap as number)) {
+    const hourlyRemaining = Math.max(
+      0,
+      Number(campaign.hourly_cap) - (hourlyDeliveryCount || 0),
+    );
+    remainingCapacity =
+      remainingCapacity === null
+        ? hourlyRemaining
+        : Math.min(remainingCapacity, hourlyRemaining);
+    if (hourlyRemaining === 0) {
       return {
         budgetCheck: {
           eligible: false,
@@ -247,16 +267,73 @@ async function checkCampaignBudgetAndCaps(
     budgetCheck: {
       eligible: true,
     },
+    remainingCapacity,
   };
 }
 
 /**
  * Check if opportunity falls within campaign's schedule/timezone.
  */
-function isScheduleActive(_schedule: Record<string, unknown>): boolean {
-  // Placeholder: implement based on schedule JSON structure
-  // For now, assume any schedule present means active
-  return true;
+export function isScheduleActive(
+  schedule: Record<string, unknown>,
+  now: Date = new Date(),
+): boolean {
+  if (schedule.enabled === false) return false;
+
+  const timezone =
+    typeof schedule.timezone === "string" ? schedule.timezone : "UTC";
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now);
+  } catch {
+    return false;
+  }
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value;
+  const weekday = value("weekday")?.toLowerCase();
+  const minuteOfDay = Number(value("hour")) * 60 + Number(value("minute"));
+  if (!weekday || !Number.isFinite(minuteOfDay)) return false;
+
+  const configuredDays = Array.isArray(schedule.days)
+    ? schedule.days.map((day) => String(day).slice(0, 3).toLowerCase())
+    : null;
+  if (configuredDays && configuredDays.length > 0 && !configuredDays.includes(weekday)) {
+    return false;
+  }
+
+  const windows = Array.isArray(schedule.windows)
+    ? schedule.windows
+    : schedule.start && schedule.end
+      ? [{ start: schedule.start, end: schedule.end }]
+      : [];
+  if (windows.length === 0) return true;
+
+  return windows.some((window) => {
+    if (!window || typeof window !== "object") return false;
+    const { start, end } = window as { start?: unknown; end?: unknown };
+    const startMinute = parseClock(start);
+    const endMinute = parseClock(end);
+    if (startMinute === null || endMinute === null) return false;
+    if (startMinute === endMinute) return true;
+    return startMinute < endMinute
+      ? minuteOfDay >= startMinute && minuteOfDay < endMinute
+      : minuteOfDay >= startMinute || minuteOfDay < endMinute;
+  });
+}
+
+function parseClock(value: unknown): number | null {
+  if (typeof value !== "string" || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(value)) {
+    return null;
+  }
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
 }
 
 /**
