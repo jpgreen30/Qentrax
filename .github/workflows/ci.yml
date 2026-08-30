@@ -46,7 +46,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run Golden Path browser suite
+      - name: Rehearse the exact migration delta
         env:
           PGRST_BIN: ${{ github.workspace }}/scripts/postgrest-docker.sh
+        run: bash scripts/rehearse-upgrade.sh
+
+      - name: Run Golden Path browser suite on the upgraded DB
+        env:
+          PGRST_BIN: ${{ github.workspace }}/scripts/postgrest-docker.sh
+          E2E_RESET_DB: 0
         run: npm run e2e
