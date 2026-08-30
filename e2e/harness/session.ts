@@ -84,7 +84,6 @@ export async function signIn(
       // Use the exact app URL instead of a host-scoped IP-domain cookie.
       // Chromium can be picky about Domain attributes on numeric hosts.
       url: opts.appUrl,
-      path: "/",
       httpOnly: false,
       secure: false,
       sameSite: "Lax",
