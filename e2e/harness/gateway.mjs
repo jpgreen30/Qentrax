@@ -30,16 +30,35 @@ function json(res, status, body) {
   res.end(payload);
 }
 
-function decodeSub(auth) {
+function decodePayload(auth) {
   if (!auth?.startsWith("Bearer ")) return null;
   try {
-    const payload = JSON.parse(
+    return JSON.parse(
       Buffer.from(auth.slice(7).split(".")[1], "base64url").toString("utf8"),
     );
-    return payload.sub ?? null;
   } catch {
     return null;
   }
+}
+
+function userFromClaims(payload) {
+  if (!payload?.sub) return null;
+  const now = new Date().toISOString();
+  return {
+    id: payload.sub,
+    aud: payload.aud ?? "authenticated",
+    role: payload.role ?? "authenticated",
+    email: payload.email ?? null,
+    phone: null,
+    app_metadata: payload.app_metadata ?? {},
+    user_metadata: payload.user_metadata ?? {},
+    identities: [],
+    factors: [],
+    created_at: payload.created_at ?? now,
+    updated_at: payload.updated_at ?? now,
+    last_sign_in_at: payload.last_sign_in_at ?? now,
+    is_anonymous: false,
+  };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -53,15 +72,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === "/auth/v1/user") {
-    const sub = decodeSub(req.headers.authorization);
-    const user = users[sub];
+    const payload = decodePayload(req.headers.authorization);
+    const user = payload?.sub ? users[payload.sub] ?? userFromClaims(payload) : null;
     if (!user) return json(res, 401, { message: "invalid claim: missing sub" });
     return json(res, 200, user);
   }
 
   if (url.pathname === "/auth/v1/token") {
     // Refresh is a no-op here: the suite mints long-lived tokens.
-    const sub = decodeSub(req.headers.authorization);
+    const payload = decodePayload(req.headers.authorization);
+    const sub = payload?.sub ?? null;
     return json(res, 400, { error: "not_supported", sub });
   }
 

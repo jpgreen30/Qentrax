@@ -76,13 +76,14 @@ export async function signIn(
 
   // @supabase/ssr stores the session as base64- prefixed JSON.
   const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64")}`;
-  const { hostname } = new URL(opts.appUrl);
 
   await context.addCookies([
     {
       name: authCookieName(opts.supabaseUrl),
       value,
-      domain: hostname,
+      // Use the exact app URL instead of a host-scoped IP-domain cookie.
+      // Chromium can be picky about Domain attributes on numeric hosts.
+      url: opts.appUrl,
       path: "/",
       httpOnly: false,
       secure: false,
