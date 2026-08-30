@@ -363,7 +363,14 @@ export function verifyWebhookSignature(
     return false;
   }
 
-  return signatureParts[1] === expectedSignature;
+  // Constant-time comparison. A plain === returns as soon as two bytes differ,
+  // so response time leaks how much of a forged signature was correct and a
+  // valid one can be recovered byte by byte. timingSafeEqual requires equal
+  // lengths, so a wrong-length digest is rejected before the comparison.
+  const provided = Buffer.from(signatureParts[1], "utf8");
+  const expected = Buffer.from(expectedSignature, "utf8");
+  if (provided.length !== expected.length) return false;
+  return crypto.timingSafeEqual(provided, expected);
 }
 
 export async function receiveWebhookUpdate(

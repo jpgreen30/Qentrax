@@ -1,698 +1,198 @@
 import { describe, it, expect } from "vitest";
+import crypto from "node:crypto";
 import { generateHmacSignature, verifyWebhookSignature } from "./webhooks";
+import type { WebhookEvent } from "./webhooks";
+import {
+  checkOutboundUrl,
+  isPrivateAddress,
+  isLoopbackAddress,
+  isLinkLocalAddress,
+} from "@/lib/security/outbound-url";
 
-describe("Phase 6: Webhook Infrastructure", () => {
-  describe("Webhook Authentication", () => {
-    it("should generate HMAC signature with SHA256", () => {
-      const event = {
-        id: "evt-123",
-        event_type: "delivery.accepted" as const,
-        transaction_id: "txn-123",
-        organization_id: "org-123",
-        connector_id: "conn-123",
-        timestamp: "2026-08-29T00:00:00Z",
-        data: {}
-      };
-      const secret = "test-secret";
-      const signature = generateHmacSignature(event, secret);
-      expect(signature).toMatch(/^sha256=/);
-      expect(signature.length).toBeGreaterThan(10);
-    });
+/**
+ * Behavioral coverage for webhook signing and outbound destination safety.
+ *
+ * This file previously held 150 placeholder assertions that asserted a literal
+ * truth and exercised nothing. Webhooks are now on the delivery critical path,
+ * so that coverage has been replaced with real tests of the security properties
+ * Phase 7 requires.
+ */
+const SECRET = "whsec_test_secret";
 
-    it("should verify valid HMAC signature", () => {
-      const event = {
-        id: "evt-123",
-        event_type: "delivery.accepted" as const,
-        transaction_id: "txn-123",
-        organization_id: "org-123",
-        connector_id: "conn-123",
-        timestamp: "2026-08-29T00:00:00Z",
-        data: {}
-      };
-      const secret = "test-secret";
-      const signature = generateHmacSignature(event, secret);
-      const payload = JSON.stringify(event);
-      const isValid = verifyWebhookSignature(payload, signature, secret);
-      expect(isValid).toBe(true);
-    });
+function event(over: Partial<WebhookEvent> = {}): WebhookEvent {
+  return {
+    id: "evt_1",
+    event_type: "lead.delivered",
+    organization_id: "org_1",
+    payload: { transaction_id: "txn_1", amount_cents: 4500 },
+    created_at: "2026-08-30T00:00:00.000Z",
+    ...over,
+  } as WebhookEvent;
+}
 
-    it("should reject invalid HMAC signature", () => {
-      const payload = '{"id":"test"}';
-      const signature = "sha256=invalidsignature";
-      const secret = "test-secret";
-      const isValid = verifyWebhookSignature(payload, signature, secret);
-      expect(isValid).toBe(false);
-    });
-
-    it("should reject tampered payload", () => {
-      const event = {
-        id: "evt-123",
-        event_type: "delivery.accepted" as const,
-        transaction_id: "txn-123",
-        organization_id: "org-123",
-        connector_id: "conn-123",
-        timestamp: "2026-08-29T00:00:00Z",
-        data: {}
-      };
-      const secret = "test-secret";
-      const signature = generateHmacSignature(event, secret);
-
-      const tamperedEvent = { ...event, id: "evt-999" };
-      const tamperedPayload = JSON.stringify(tamperedEvent);
-      const isValid = verifyWebhookSignature(tamperedPayload, signature, secret);
-      expect(isValid).toBe(false);
-    });
+describe("HMAC signing", () => {
+  it("produces a sha256-prefixed hex digest", () => {
+    const sig = generateHmacSignature(event(), SECRET);
+    expect(sig).toMatch(/^sha256=[0-9a-f]{64}$/);
   });
 
-  describe("Webhook Event Triggering", () => {
-    it("should create webhook event for delivery", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should support all event types", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should trigger webhook event with correct data", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should find subscribed webhook endpoints", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should filter endpoints by event type subscription", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should skip inactive webhook endpoints", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should create delivery record for each subscribed endpoint", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle no subscribed endpoints gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should enforce organization isolation when finding endpoints", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should capture webhook event timestamp", () => {
-      expect(true).toBe(true);
-    });
+  it("is deterministic for the same event and secret", () => {
+    expect(generateHmacSignature(event(), SECRET)).toBe(generateHmacSignature(event(), SECRET));
   });
 
-  describe("Webhook Delivery Sending", () => {
-    it("should send webhook to endpoint URL", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should include webhook event data in request body", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add content-type application/json header", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add user-agent header", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add X-Webhook-Event header", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add X-Webhook-Delivery-ID header", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add X-Webhook-Timestamp header", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle successful webhook delivery (2xx)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should update delivery status to sent on success", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should store response status code", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should store response body", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle 5xx errors as retryable", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle 408 timeout as retryable", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle 429 rate limit as retryable", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle 4xx errors (except 408/429) as permanent failure", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should mark 4xx errors as failed without retry", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle connection timeout (10 seconds)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle network errors as retryable", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should calculate exponential backoff delay", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should not exceed max backoff delay (1 hour)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should schedule next retry attempt", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should increment attempt number on retry", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should mark as failed when max attempts exceeded", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should respect max attempts (5)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle endpoint not found", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle event not found", () => {
-      expect(true).toBe(true);
-    });
+  it("changes when the payload changes", () => {
+    const a = generateHmacSignature(event(), SECRET);
+    const b = generateHmacSignature(event({ payload: { transaction_id: "txn_2" } }), SECRET);
+    expect(a).not.toBe(b);
   });
 
-  describe("Webhook Authentication", () => {
-    it("should support no authentication (auth_type: none)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add API key header (auth_type: api_key)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should add bearer token header (auth_type: bearer)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should generate HMAC signature (auth_type: hmac)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should use SHA256 for HMAC", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should include X-Webhook-Signature header with HMAC", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should format signature as sha256=...", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should create consistent signatures for same payload", () => {
-      expect(true).toBe(true);
-    });
+  it("changes when the secret changes", () => {
+    expect(generateHmacSignature(event(), SECRET)).not.toBe(
+      generateHmacSignature(event(), "different_secret"),
+    );
   });
 
-  describe("Webhook Signature Verification", () => {
-    it("should verify valid HMAC signature", () => {
-      expect(true).toBe(true);
-    });
+  it("matches an independently computed HMAC of the serialized event", () => {
+    const payload = JSON.stringify(event());
+    const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
+    expect(generateHmacSignature(event(), SECRET)).toBe(`sha256=${expected}`);
+  });
+});
 
-    it("should reject invalid HMAC signature", () => {
-      expect(true).toBe(true);
-    });
+describe("signature verification", () => {
+  const payload = JSON.stringify(event());
+  const valid = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
 
-    it("should reject tampered payload", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle sha256= format correctly", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should reject malformed signature format", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should reject signature without algorithm prefix", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should be case-sensitive for hex comparison", () => {
-      expect(true).toBe(true);
-    });
+  it("accepts a correct signature", () => {
+    expect(verifyWebhookSignature(payload, `sha256=${valid}`, SECRET)).toBe(true);
   });
 
-  describe("Webhook Retry Policy", () => {
-    it("should use 5-second initial delay", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should use 2x backoff multiplier", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should allow 5 max attempts", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should calculate retry delay: 5s, 10s, 20s, 40s, 80s", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should cap max delay at 1 hour", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should schedule next_attempt_at in future", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should mark delivery as retrying on transient failure", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should preserve error_message through retries", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should update status to retrying, not pending", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a tampered payload", () => {
+    expect(verifyWebhookSignature(payload + " ", `sha256=${valid}`, SECRET)).toBe(false);
   });
 
-  describe("Webhook Retry Queue", () => {
-    it("should find pending deliveries ready for retry", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should respect next_attempt_at timestamp", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should process up to 10 items per run", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should order by next_attempt_at ascending", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should include both pending and retrying statuses", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should skip already-sent deliveries", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should skip already-failed deliveries", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should return counts (succeeded, failed, rescheduled)", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should continue on individual delivery failure", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle empty queue gracefully", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a signature made with the wrong secret", () => {
+    const forged = crypto.createHmac("sha256", "wrong").update(payload).digest("hex");
+    expect(verifyWebhookSignature(payload, `sha256=${forged}`, SECRET)).toBe(false);
   });
 
-  describe("Webhook Update Reception", () => {
-    it("should receive webhook update with transaction_id and status", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should validate transaction_id is present", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should validate status is present", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should map status accepted to delivery accepted", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should map status rejected to delivery failed", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should map status review to delivery pending", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should update delivery record with new status", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should update transaction status to charged on acceptance", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should verify signature if provided", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should reject webhook with invalid signature", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should enforce organization isolation on update", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should return success message on valid update", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should return error message on failure", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle missing transaction gracefully", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a single flipped character", () => {
+    const flipped = (valid[0] === "a" ? "b" : "a") + valid.slice(1);
+    expect(verifyWebhookSignature(payload, `sha256=${flipped}`, SECRET)).toBe(false);
   });
 
-  describe("API Endpoints", () => {
-    describe("GET /api/v1/webhooks", () => {
-      it("should list webhook endpoints", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should filter by connector_id", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should filter by organization_id", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return endpoint count", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should enforce organization isolation", () => {
-        expect(true).toBe(true);
-      });
-    });
-
-    describe("POST /api/v1/webhooks", () => {
-      it("should create new webhook endpoint", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should validate required fields (connector_id, organization_id, url, events)", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should validate URL format", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should set active to true by default", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should set auth_type to none by default", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return 400 for missing required field", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return 201 on successful creation", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should enforce organization isolation on create", () => {
-        expect(true).toBe(true);
-      });
-    });
-
-    describe("POST /api/v1/webhooks/update", () => {
-      it("should receive webhook callback", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should validate organization_id parameter", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should verify HMAC signature if present", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should reject invalid signature", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return 400 for invalid signature", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should process webhook update on valid signature", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return success message", () => {
-        expect(true).toBe(true);
-      });
-    });
-
-    describe("GET /api/v1/webhooks/deliveries", () => {
-      it("should list webhook deliveries", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should support pagination with limit and offset", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should filter by organization_id", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should filter by webhook_endpoint_id", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should filter by status", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return delivery count", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should return total count", () => {
-        expect(true).toBe(true);
-      });
-
-      it("should enforce organization isolation", () => {
-        expect(true).toBe(true);
-      });
-    });
+  it("rejects a malformed or unprefixed signature without throwing", () => {
+    for (const sig of ["", valid, `md5=${valid}`, "sha256=", `sha256=${valid}=extra`]) {
+      expect(verifyWebhookSignature(payload, sig, SECRET)).toBe(false);
+    }
   });
 
-  describe("Database Schema", () => {
-    it("should have webhook_endpoints table", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should have webhook_events table", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should have webhook_deliveries table", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should enforce foreign key constraints", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should cascade delete endpoints when connector deleted", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should cascade delete deliveries when endpoint deleted", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should have webhook_retry_queue view", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should enforce RLS on webhook_endpoints", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should enforce RLS on webhook_events", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should allow system access to webhook_deliveries", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should validate auth_type enum", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should validate status enum", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should validate URL format", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a truncated digest rather than crashing on unequal lengths", () => {
+    // timingSafeEqual throws on differing lengths; the guard must catch it first.
+    expect(() => verifyWebhookSignature(payload, `sha256=${valid.slice(0, 30)}`, SECRET))
+      .not.toThrow();
+    expect(verifyWebhookSignature(payload, `sha256=${valid.slice(0, 30)}`, SECRET)).toBe(false);
   });
 
-  describe("Performance", () => {
-    it("should efficiently query endpoints for event triggering", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a non-hex digest of the correct length", () => {
+    expect(verifyWebhookSignature(payload, `sha256=${"z".repeat(64)}`, SECRET)).toBe(false);
+  });
+});
 
-    it("should efficiently find deliveries ready for retry", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should use indexes on status and next_attempt_at", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should limit retry queue to 10 items per run", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle large number of webhook endpoints efficiently", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle concurrent webhook deliveries", () => {
-      expect(true).toBe(true);
-    });
+describe("outbound destination safety (SSRF)", () => {
+  it("allows an ordinary public https endpoint", () => {
+    const r = checkOutboundUrl("https://buyer.example.com/leads");
+    expect(r.ok).toBe(true);
   });
 
-  describe("Error Handling", () => {
-    it("should handle missing endpoint gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle missing event gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle network errors gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle timeout errors gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should handle database errors gracefully", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should not throw on failed database update", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should log errors without halting execution", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should recover from transient failures via retry", () => {
-      expect(true).toBe(true);
-    });
+  it("blocks non-http protocols", () => {
+    for (const url of [
+      "file:///etc/passwd",
+      "ftp://example.com/x",
+      "gopher://example.com/",
+      "data:text/plain,hello",
+    ]) {
+      const r = checkOutboundUrl(url);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.reason).toBe("UNSUPPORTED_PROTOCOL");
+    }
   });
 
-  describe("Integration Tests", () => {
-    it("should trigger webhook on delivery success", () => {
-      expect(true).toBe(true);
-    });
+  it("blocks cloud instance metadata", () => {
+    for (const url of [
+      "http://169.254.169.254/latest/meta-data/",
+      "http://metadata.google.internal/computeMetadata/v1/",
+    ]) {
+      const r = checkOutboundUrl(url);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(["METADATA_ADDRESS", "LINK_LOCAL_ADDRESS"]).toContain(r.reason);
+    }
+  });
 
-    it("should trigger webhook on delivery failure", () => {
-      expect(true).toBe(true);
-    });
+  it("blocks private ranges", () => {
+    for (const host of ["10.0.0.5", "172.16.4.1", "172.31.255.254", "192.168.1.1", "100.64.0.1"]) {
+      const r = checkOutboundUrl(`http://${host}/hook`);
+      expect(r.ok, `${host} should be blocked`).toBe(false);
+    }
+  });
 
-    it("should trigger webhook on return request", () => {
-      expect(true).toBe(true);
-    });
+  it("allows public addresses adjacent to private ranges", () => {
+    for (const host of ["172.15.0.1", "172.32.0.1", "11.0.0.1", "192.169.0.1"]) {
+      expect(checkOutboundUrl(`https://${host}/hook`).ok, `${host} should be allowed`).toBe(true);
+    }
+  });
 
-    it("should send webhook and receive response", () => {
-      expect(true).toBe(true);
-    });
+  it("blocks loopback and localhost by default", () => {
+    const previous = process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY;
+    delete process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY;
+    try {
+      for (const url of ["http://127.0.0.1:9000/x", "http://localhost:3000/x", "http://[::1]/x"]) {
+        const r = checkOutboundUrl(url);
+        expect(r.ok, `${url} should be blocked`).toBe(false);
+      }
+    } finally {
+      if (previous !== undefined) process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY = previous;
+    }
+  });
 
-    it("should retry failed webhook with exponential backoff", () => {
-      expect(true).toBe(true);
-    });
+  it("permits loopback only when explicitly opted in outside production", () => {
+    const prevAllow = process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY;
+    const prevForce = process.env.QENTRAX_FORCE_PRODUCTION;
+    try {
+      process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY = "1";
+      delete process.env.QENTRAX_FORCE_PRODUCTION;
+      expect(checkOutboundUrl("http://127.0.0.1:4010/hook").ok).toBe(true);
 
-    it("should eventually succeed or fail webhook after max retries", () => {
-      expect(true).toBe(true);
-    });
+      // The opt-in must not survive a production posture.
+      process.env.QENTRAX_FORCE_PRODUCTION = "1";
+      expect(checkOutboundUrl("http://127.0.0.1:4010/hook").ok).toBe(false);
+    } finally {
+      if (prevAllow !== undefined) process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY = prevAllow;
+      else delete process.env.QENTRAX_ALLOW_LOOPBACK_DELIVERY;
+      if (prevForce !== undefined) process.env.QENTRAX_FORCE_PRODUCTION = prevForce;
+      else delete process.env.QENTRAX_FORCE_PRODUCTION;
+    }
+  });
 
-    it("should receive webhook update and update delivery status", () => {
-      expect(true).toBe(true);
-    });
+  it("blocks credentials embedded in the URL, which leak through logs", () => {
+    const r = checkOutboundUrl("https://user:pass@buyer.example.com/hook");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe("CREDENTIALS_IN_URL");
+  });
 
-    it("should update transaction status on webhook acceptance", () => {
-      expect(true).toBe(true);
-    });
+  it("rejects empty and unparseable URLs", () => {
+    for (const url of ["", "   ", "not-a-url", "http://"]) {
+      expect(checkOutboundUrl(url).ok).toBe(false);
+    }
+  });
 
-    it("should verify webhook signature and reject if invalid", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should isolate webhook operations by organization", () => {
-      expect(true).toBe(true);
-    });
-
-    it("should track full webhook lifecycle in audit tables", () => {
-      expect(true).toBe(true);
-    });
+  it("classifies address families correctly", () => {
+    expect(isLoopbackAddress("127.0.0.1")).toBe(true);
+    expect(isLoopbackAddress("127.255.255.254")).toBe(true);
+    expect(isLoopbackAddress("128.0.0.1")).toBe(false);
+    expect(isLinkLocalAddress("169.254.1.1")).toBe(true);
+    expect(isLinkLocalAddress("169.253.1.1")).toBe(false);
+    expect(isPrivateAddress("10.1.2.3")).toBe(true);
+    expect(isPrivateAddress("8.8.8.8")).toBe(false);
   });
 });

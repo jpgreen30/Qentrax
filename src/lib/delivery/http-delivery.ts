@@ -5,6 +5,7 @@
 
 import { allowSimulatedDelivery } from "@/lib/env";
 import { redactText } from "@/lib/redact";
+import { checkOutboundUrl } from "@/lib/security/outbound-url";
 
 export type DeliveryPayload = {
   transaction_id: string;
@@ -71,6 +72,23 @@ export async function deliverToEndpoint(opts: {
       endpoint_url: null,
       response_body_redacted: null,
       error_message: "No endpoint URL configured for campaign.",
+      reason_code: "DELIVERY_CONFIG_ERROR",
+    };
+  }
+
+  // Advertiser-supplied destinations are validated before any request is made:
+  // an unchecked URL turns this worker into a confused deputy with reach into
+  // loopback, private ranges and cloud instance metadata.
+  const urlCheck = checkOutboundUrl(url);
+  if (!urlCheck.ok) {
+    return {
+      mode: "config_error",
+      status: "error",
+      http_status: null,
+      latency_ms: 0,
+      endpoint_url: url,
+      response_body_redacted: null,
+      error_message: `${urlCheck.reason}: ${urlCheck.detail}`,
       reason_code: "DELIVERY_CONFIG_ERROR",
     };
   }
