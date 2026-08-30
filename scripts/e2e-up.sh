@@ -28,10 +28,27 @@ psql -q -v ON_ERROR_STOP=1 -d qentrax -f "$ROOT/e2e/harness/seed.sql"
 (cd "$ROOT/e2e/harness" && "$PGRST_BIN" postgrest.conf) > /var/tmp/pgrst.log 2>&1 &
 node "$ROOT/e2e/harness/gateway.mjs" > /var/tmp/gateway.log 2>&1 &
 
-for _ in $(seq 1 30); do
-  curl -sf -o /dev/null "http://127.0.0.1:54321/auth/v1/.well-known/jwks.json" && break
+for _ in $(seq 1 60); do
+  if curl -sf -o /dev/null "http://127.0.0.1:54321/auth/v1/.well-known/jwks.json" 2>/dev/null && \
+     curl -sf -o /dev/null "http://127.0.0.1:3001/" 2>/dev/null; then
+    break
+  fi
   sleep 0.5
 done
+
+# Verify both services are responding
+echo "Verifying stack health..."
+if ! curl -sf -o /dev/null "http://127.0.0.1:54321/auth/v1/.well-known/jwks.json" 2>/dev/null; then
+  echo "ERROR: Gateway not responding at http://127.0.0.1:54321" >&2
+  tail -20 /var/tmp/gateway.log || true
+  exit 1
+fi
+if ! curl -sf -o /dev/null "http://127.0.0.1:3001/" 2>/dev/null; then
+  echo "ERROR: PostgREST not responding at http://127.0.0.1:3001" >&2
+  tail -20 /var/tmp/pgrst.log || true
+  exit 1
+fi
+echo "Stack health verified"
 
 cat > "$ROOT/.env.local" <<ENV
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
