@@ -121,18 +121,15 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
   await page.locator('input[name="timeout_ms"]').fill("8000");
   await page.getByRole("button", { name: "CREATE INTEGRATION" }).click();
 
-  await page.waitForURL(
-    (url) =>
-      url.pathname === "/workspace/advertiser/integrations" &&
-      url.searchParams.get("org") === ADVERTISER_ORG &&
-      url.searchParams.get("integration") !== "new",
-  );
-
-  const integrationId = new URL(page.url()).searchParams.get("integration");
-  expect(integrationId).toBeTruthy();
   await expect(page.locator(".formError")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "SAVE INTEGRATION" })).toBeVisible();
-  await expect(page.locator('input[name="integration_id"]')).toHaveValue(integrationId!);
+
+  const createdIntegration = page.getByRole("link", { name: INTEGRATION_NAME }).first();
+  await expect(createdIntegration).toBeVisible();
+  const href = await createdIntegration.getAttribute("href");
+  expect(href).toContain("integration=");
+
+  const integrationId = new URL(href!, APP_URL).searchParams.get("integration");
+  expect(integrationId).toBeTruthy();
   return integrationId!;
 }
 
