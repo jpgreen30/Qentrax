@@ -89,6 +89,8 @@ export async function ping(
       .from("auction_runs")
       .select("winning_campaign_id, winning_bid_cents, completed_at")
       .eq("opportunity_id", existingOpp.id)
+      .order("completed_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (existingAuction) {
@@ -107,7 +109,12 @@ export async function ping(
       }
     }
 
-    // Bid expired; treat as new ping below
+    return {
+      ok: false,
+      error_code: "BID_EXPIRED",
+      error_message: "The prior bid expired; submit a new external_submission_id to run a fresh auction",
+      public_transaction_id: existingOpp.public_transaction_id,
+    };
   }
 
   // Load source to get publisher org
@@ -256,6 +263,8 @@ export async function post(
     .from("transactions")
     .select("id, campaign_id, advertiser_price_cents, status")
     .eq("opportunity_id", opp.id)
+    .order("completed_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existingTxn) {
