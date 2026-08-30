@@ -272,10 +272,22 @@ export async function POST(request: Request) {
         .limit(1)
         .maybeSingle();
 
+      const { data: auctionRunRow } = await supabaseClient
+        .from("auction_runs")
+        .select("id")
+        .eq("opportunity_id", opportunity.id)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       try {
+        if (!auctionRunRow?.id) {
+          throw new Error("Auction run was not recorded");
+        }
         const delivery = await enqueueAndAttemptDelivery(supabaseClient, {
           opportunityId: opportunity.id,
           campaignId: ar.campaign_id,
+          auctionRunId: auctionRunRow.id,
           transactionId: ar.transaction_id ?? null,
           endpointId: ep?.id ?? null,
           endpointUrl: ep?.endpoint_url ?? null,
