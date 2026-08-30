@@ -329,7 +329,7 @@ export function isScheduleActive(
 }
 
 function parseClock(value: unknown): number | null {
-  if (typeof value !== "string" || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(value)) {
+  if (typeof value !== "string" || !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
     return null;
   }
   const [hour, minute] = value.split(":").map(Number);
