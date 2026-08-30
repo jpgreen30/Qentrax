@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generatePublicTransactionId } from "../transaction-id";
 import { runAuction, RoutingStrategy } from "./routing";
 import { recordAuctionDecision } from "./auction-log";
-import { computeQScore } from "../qscore";
+import { enqueueAndAttemptDelivery } from "../delivery/retry";
 
 const BID_EXPIRATION_MS = 30000; // 30 seconds, configurable
 
@@ -153,9 +153,6 @@ export async function ping(
       product_id: product ? (await resolveProductId(supabase, vert.id, product))?.id : null,
       external_submission_id,
       status: "validation_pending",
-      normalized_payload_encrypted: Buffer.from(
-        JSON.stringify({ consumer, attributes, consent }),
-      ),
       received_at: new Date().toISOString(),
       schema_version: "1.0",
     })
@@ -224,9 +221,23 @@ export async function post(
   supabase: SupabaseClient,
   input: PostInput,
 ): Promise<PostResult> {
-  const { public_transaction_id, source_id, external_submission_id, consumer, attributes } = input;
+  const {
+    public_transaction_id,
+    source_id,
+    external_submission_id,
+    consumer,
+    attributes,
+    consent,
+  } = input;
 
-  // Load opportunity by public txn id
+  if (!consent || Object.keys(consent).length === 0) {
+    return {
+      ok: false,
+      error_code: "CONSENT_REQUIRED",
+      error_message: "Consent evidence is required before buyer delivery",
+    };
+  }
+
   const { data: opp, error: oppError } = await supabase
     .from("opportunities")
     .select("id, source_id, external_submission_id, vertical_id, product_id, status, publisher_org_id")
@@ -241,7 +252,6 @@ export async function post(
     };
   }
 
-  // Verify source/external_submission_id match
   if (opp.source_id !== source_id || opp.external_submission_id !== external_submission_id) {
     return {
       ok: false,
@@ -250,10 +260,9 @@ export async function post(
     };
   }
 
-  // Check for existing transaction (idempotency)
   const { data: existingTxn } = await supabase
     .from("transactions")
-    .select("id, advertiser_price_cents, status")
+    .select("id, campaign_id, advertiser_price_cents, status")
     .eq("opportunity_id", opp.id)
     .maybeSingle();
 
@@ -261,20 +270,24 @@ export async function post(
     return {
       ok: true,
       transaction_id: existingTxn.id,
-      delivered_to_campaign_id: "", // TODO: fetch from delivery
-      status: existingTxn.status === "charged" ? "accepted" : "delivered",
+      delivered_to_campaign_id: existingTxn.campaign_id,
+      status:
+        existingTxn.status === "charged" || existingTxn.status === "settled"
+          ? "accepted"
+          : existingTxn.status === "returned"
+            ? "rejected"
+            : "delivered",
       charge_cents: existingTxn.advertiser_price_cents,
     };
   }
 
-  // Get auction decision
   const { data: auctionRun } = await supabase
     .from("auction_runs")
     .select("id, winning_campaign_id, winning_bid_cents, completed_at")
     .eq("opportunity_id", opp.id)
     .maybeSingle();
 
-  if (!auctionRun || !auctionRun.winning_campaign_id) {
+  if (!auctionRun || !auctionRun.winning_campaign_id || !auctionRun.winning_bid_cents) {
     return {
       ok: false,
       error_code: "NO_WINNING_BID",
@@ -282,7 +295,6 @@ export async function post(
     };
   }
 
-  // Check bid expiration
   const bidExpiresAt = new Date(
     new Date(auctionRun.completed_at).getTime() + BID_EXPIRATION_MS,
   );
@@ -294,7 +306,6 @@ export async function post(
     };
   }
 
-  // Load winning campaign
   const { data: campaign } = await supabase
     .from("campaigns")
     .select("id, advertiser_org_id, base_bid_cents")
@@ -309,7 +320,6 @@ export async function post(
     };
   }
 
-  // Atomically enforce idempotency, budget, and capacity while reserving.
   const idempotencyKey = `${source_id}:${external_submission_id}:${public_transaction_id}`;
   const { data: reservation, error: reservationError } = await supabase
     .rpc("reserve_campaign_transaction", {
@@ -338,19 +348,11 @@ export async function post(
     error_code: string | null;
   };
 
-  if (typedReservation.error_code) {
+  if (typedReservation.error_code || !typedReservation.transaction_id) {
     return {
       ok: false,
-      error_code: typedReservation.error_code,
+      error_code: typedReservation.error_code || "TRANSACTION_CREATE_FAILED",
       error_message: "Campaign cannot accept this transaction",
-    };
-  }
-
-  if (!typedReservation.transaction_id) {
-    return {
-      ok: false,
-      error_code: "TRANSACTION_CREATE_FAILED",
-      error_message: "Transaction reservation returned no transaction",
     };
   }
 
@@ -359,36 +361,119 @@ export async function post(
       ok: true,
       transaction_id: typedReservation.transaction_id,
       delivered_to_campaign_id: campaign.id,
-      status: typedReservation.transaction_status === "charged" ? "accepted" : "delivered",
+      status:
+        typedReservation.transaction_status === "charged" ||
+        typedReservation.transaction_status === "settled"
+          ? "accepted"
+          : typedReservation.transaction_status === "returned"
+            ? "rejected"
+            : "delivered",
       charge_cents: typedReservation.charge_cents ?? auctionRun.winning_bid_cents,
     };
   }
 
-  const txn = { id: typedReservation.transaction_id };
-
-  // Record transaction event
+  const transactionId = typedReservation.transaction_id;
   await supabase.from("transaction_events").insert({
-    transaction_id: txn.id,
+    transaction_id: transactionId,
     event_type: "reserved",
     reason_code: "PING_POST_ACCEPTED",
     actor_type: "api",
-    payload_json: { consumer, attributes },
+    payload_json: {
+      public_transaction_id,
+      external_submission_id,
+      consent_present: true,
+    },
     occurred_at: new Date().toISOString(),
   });
 
-  // Update opportunity status
-  await supabase
-    .from("opportunities")
-    .update({ status: "delivered" })
-    .eq("id", opp.id);
+  const [{ data: endpoint }, { data: vertical }] = await Promise.all([
+    supabase
+      .from("campaign_endpoints")
+      .select("id, endpoint_url, timeout_ms")
+      .eq("campaign_id", campaign.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("verticals").select("code").eq("id", opp.vertical_id).maybeSingle(),
+  ]);
 
-  return {
-    ok: true,
-    transaction_id: txn.id,
-    delivered_to_campaign_id: campaign.id,
-    status: "delivered",
-    charge_cents: auctionRun.winning_bid_cents,
-  };
+  try {
+    const delivery = await enqueueAndAttemptDelivery(supabase, {
+      opportunityId: opp.id,
+      campaignId: campaign.id,
+      auctionRunId: auctionRun.id,
+      transactionId,
+      endpointId: endpoint?.id ?? null,
+      endpointUrl: endpoint?.endpoint_url ?? null,
+      timeoutMs: endpoint?.timeout_ms ? Number(endpoint.timeout_ms) : undefined,
+      maxAttempts: 1,
+      requestId: `post:${transactionId}`,
+      payload: {
+        transaction_id: transactionId,
+        public_transaction_id,
+        opportunity_id: opp.id,
+        campaign_id: campaign.id,
+        vertical: vertical?.code ?? null,
+        consumer,
+        attributes,
+        consent,
+        advertiser_price_cents: auctionRun.winning_bid_cents,
+        delivered_at: new Date().toISOString(),
+      },
+    });
+
+    const accepted = delivery.status === "accepted";
+    const { data: finalized, error: finalizeError } = await supabase
+      .rpc("finalize_campaign_transaction", {
+        p_transaction_id: transactionId,
+        p_delivery_id: delivery.deliveryId,
+        p_accepted: accepted,
+        p_reason_code: delivery.reason_code ?? (accepted ? "BUYER_ACCEPTED" : "DELIVERY_FAILED"),
+      })
+      .single();
+
+    if (finalizeError || !finalized) {
+      return {
+        ok: false,
+        error_code: "TRANSACTION_FINALIZE_FAILED",
+        error_message: "Delivery completed but transaction finalization failed",
+      };
+    }
+
+    await supabase
+      .from("opportunities")
+      .update({ status: accepted ? "delivered" : "rejected" })
+      .eq("id", opp.id);
+
+    if (!accepted) {
+      return {
+        ok: false,
+        error_code: delivery.reason_code ?? "DELIVERY_FAILED",
+        error_message: "Buyer delivery was not accepted; budget reservation was released",
+      };
+    }
+
+    return {
+      ok: true,
+      transaction_id: transactionId,
+      delivered_to_campaign_id: campaign.id,
+      status: "accepted",
+      charge_cents: typedReservation.charge_cents ?? auctionRun.winning_bid_cents,
+    };
+  } catch {
+    await supabase.rpc("finalize_campaign_transaction", {
+      p_transaction_id: transactionId,
+      p_delivery_id: null,
+      p_accepted: false,
+      p_reason_code: "DELIVERY_ERROR",
+    });
+    return {
+      ok: false,
+      error_code: "DELIVERY_ERROR",
+      error_message: "Buyer delivery failed; budget reservation was released",
+    };
+  }
 }
 
 /**
