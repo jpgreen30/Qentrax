@@ -22,6 +22,7 @@ DELTA_START="${DELTA_START:-20260830040000}"
 DELTA_END="${DELTA_END:-20260830120000}"
 PGRST_BIN="${PGRST_BIN:-$(command -v postgrest || echo /var/tmp/postgrest)}"
 PGRST_LOG="${PGRST_LOG:-/var/tmp/qentrax-postgrest-rehearsal.log}"
+PGRST_PID=""
 
 PLATFORM_ORG_ID="d0000000-0000-0000-0000-00000000f101"
 ADVERTISER_ORG_ID="d0000000-0000-0000-0000-00000000f102"
@@ -654,12 +655,11 @@ SQL
 }
 
 verify_postgrest_discovery() {
-  local pid=""
   cleanup_postgrest() {
-    if [[ -n "$pid" ]]; then
-      kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-      pid=""
+    if [[ -n "$PGRST_PID" ]]; then
+      kill "$PGRST_PID" 2>/dev/null || true
+      wait "$PGRST_PID" 2>/dev/null || true
+      PGRST_PID=""
     fi
     pkill -f "postgrest .*postgrest.conf" 2>/dev/null || true
     pkill -f "harness/gateway.mjs" 2>/dev/null || true
@@ -677,7 +677,7 @@ verify_postgrest_discovery() {
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "alter role authenticator login; grant anon, authenticated, service_role to authenticator;" >/dev/null
 
   "$PGRST_BIN" "$ROOT/e2e/harness/postgrest.conf" >"$PGRST_LOG" 2>&1 &
-  pid=$!
+  PGRST_PID=$!
 
   for _ in $(seq 1 60); do
     if curl -sf -o /dev/null "http://127.0.0.1:3001/vertical_schema_versions?select=id&limit=0" \
