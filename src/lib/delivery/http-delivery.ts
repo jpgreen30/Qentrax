@@ -13,7 +13,9 @@ export type DeliveryPayload = {
   campaign_id: string;
   vertical?: string | null;
   state?: string | null;
+  consumer?: Record<string, unknown>;
   attributes?: Record<string, unknown>;
+  consent?: Record<string, unknown>;
   advertiser_price_cents?: number | null;
   delivered_at: string;
 };
