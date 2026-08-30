@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page, type ConsoleMessage } from "@playwright/test";
 import { authCookieName, signIn } from "./harness/session";
 
 /**
@@ -170,71 +170,54 @@ async function createPublisherSource(page: Page): Promise<string> {
   return sourceId;
 }
 
-async function pauseCampaignByName(page: Page, name: string): Promise<void> {
+async function pauseCampaignByName(context: BrowserContext, name: string): Promise<void> {
   const publishableKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     envFromLocal("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   expect(publishableKey, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY").toBeTruthy();
 
-  const result = await page.evaluate(
-    async ({ supabaseUrl, cookieName, publishableKey, advertiserOrgId, name }) => {
-      const cookie = document.cookie
-        .split("; ")
-        .find((part) => part.startsWith(`${cookieName}=`));
-      if (!cookie) {
-        throw new Error(`missing auth cookie ${cookieName}`);
-      }
+  const cookie = (await context.cookies()).find((entry) => entry.name === authCookieName(SUPABASE_URL));
+  if (!cookie) throw new Error(`missing auth cookie ${authCookieName(SUPABASE_URL)}`);
 
-      const value = cookie.slice(cookieName.length + 1);
-      const session = JSON.parse(atob(value.replace(/^base64-/, "")));
-      const accessToken = session.access_token as string | undefined;
-      if (!accessToken) throw new Error("missing access token");
+  const session = JSON.parse(Buffer.from(cookie.value.replace(/^base64-/, ""), "base64").toString("utf8"));
+  const accessToken = session.access_token as string | undefined;
+  if (!accessToken) throw new Error("missing access token");
 
-      const url = new URL("/rest/v1/campaigns", supabaseUrl);
-      url.searchParams.set("name", `eq.${name}`);
-      url.searchParams.set("advertiser_org_id", `eq.${advertiserOrgId}`);
-      url.searchParams.set("select", "id,status");
+  const url = new URL("/rest/v1/campaigns", SUPABASE_URL);
+  url.searchParams.set("name", `eq.${name}`);
+  url.searchParams.set("advertiser_org_id", `eq.${ADVERTISER_ORG}`);
+  url.searchParams.set("select", "id,status");
 
-      const response = await fetch(url.toString(), {
-        headers: {
-          apikey: publishableKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`lookup failed: ${response.status}`);
-      }
-
-      const rows = (await response.json()) as Array<{ id: string; status: string }>;
-      const campaign = rows[0];
-      if (!campaign) throw new Error(`campaign not found: ${name}`);
-
-      const patch = await fetch(`${supabaseUrl}/rest/v1/campaigns?id=eq.${campaign.id}`, {
-        method: "PATCH",
-        headers: {
-          apikey: publishableKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
-        },
-        body: JSON.stringify({ status: "paused" }),
-      });
-
-      if (!patch.ok) {
-        throw new Error(`pause failed: ${patch.status}`);
-      }
-      return patch.status;
+  const response = await fetch(url.toString(), {
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
     },
-    {
-      supabaseUrl: SUPABASE_URL,
-      cookieName: authCookieName(SUPABASE_URL),
-      publishableKey,
-      advertiserOrgId: ADVERTISER_ORG,
-      name,
-    },
-  );
+  });
+  if (!response.ok) {
+    throw new Error(`lookup failed: ${response.status}`);
+  }
 
-  expect(result).toBe(200);
+  const rows = (await response.json()) as Array<{ id: string; status: string }>;
+  const campaign = rows[0];
+  if (!campaign) throw new Error(`campaign not found: ${name}`);
+
+  const patch = await fetch(`${SUPABASE_URL}/rest/v1/campaigns?id=eq.${campaign.id}`, {
+    method: "PATCH",
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ status: "paused" }),
+  });
+
+  if (!patch.ok) {
+    throw new Error(`pause failed: ${patch.status}`);
+  }
+
+  expect(patch.status).toBe(200);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -565,7 +548,7 @@ test("golden path reaches billing, ping, post, conversion, reporting, and audit"
 
   // The earlier active campaign from the lightweight activation test can tie
   // this new campaign on bid, so park it before we run the real delivery path.
-  await pauseCampaignByName(page, `${CAMPAIGN_NAME} delivered`);
+  await pauseCampaignByName(context, `${CAMPAIGN_NAME} delivered`);
   assertClean(problems, "billing and campaign parking");
 
   // ---- integration + campaign ---------------------------------------------
