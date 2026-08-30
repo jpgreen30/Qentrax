@@ -55,4 +55,5 @@ jobs:
         env:
           PGRST_BIN: ${{ github.workspace }}/scripts/postgrest-docker.sh
           E2E_RESET_DB: 0
+          QENTRAX_ALLOW_LOOPBACK_DELIVERY: 1
         run: npm run e2e
