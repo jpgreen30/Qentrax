@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
 import { authCookieName, signIn } from "./harness/session";
 
@@ -72,6 +74,15 @@ function moneyToCents(value: string | null): number {
   if (!value) return 0;
   const parsed = Number(value.replace(/[$,]/g, ""));
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+function envFromLocal(name: string): string | undefined {
+  const envPath = path.join(process.cwd(), ".env.local");
+  if (!existsSync(envPath)) return undefined;
+  const line = readFileSync(envPath, "utf8")
+    .split(/\r?\n/)
+    .find((entry) => entry.startsWith(`${name}=`));
+  return line ? line.slice(name.length + 1) : undefined;
 }
 
 async function postJson(page: Page, path: string, body: Record<string, unknown>) {
@@ -160,7 +171,9 @@ async function createPublisherSource(page: Page): Promise<string> {
 }
 
 async function pauseCampaignByName(page: Page, name: string): Promise<void> {
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    envFromLocal("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   expect(publishableKey, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY").toBeTruthy();
 
   const result = await page.evaluate(
