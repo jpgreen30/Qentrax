@@ -230,4 +230,62 @@ create policy campaign_daily_usage_tenant on public.campaign_daily_usage
       where c.id = campaign_id and public.is_organization_member(c.advertiser_org_id))
   );
 
+
+create or replace function public.ensure_platform_clearing() returns uuid
+language plpgsql security definer set search_path = '' as $
+declare v_org_id uuid; v_acct_id uuid;
+begin
+  select id into v_org_id from public.organizations where type = 'platform' limit 1;
+  if v_org_id is null then
+    insert into public.organizations (type, legal_name, onboarding_status, status)
+    values ('platform', 'Qentrax Platform', 'approved', 'active')
+    returning id into v_org_id;
+  end if;
+  select id into v_acct_id from public.financial_accounts
+  where organization_id = v_org_id and type = 'platform_cash' and currency = 'USD';
+  if v_acct_id is null then
+    insert into public.financial_accounts (organization_id, type, currency, status)
+    values (v_org_id, 'platform_cash', 'USD', 'active')
+    returning id into v_acct_id;
+  end if;
+  return v_acct_id;
+end $;
+
+create or replace function public.post_balanced_journal(
+  p_type text, p_idempotency_key text, p_description text, p_created_by uuid,
+  p_debit_account_id uuid, p_credit_account_id uuid, p_amount_cents integer,
+  p_currency char(3) default 'USD', p_entry_type text default 'funding',
+  p_reference_type text default null, p_reference_id uuid default null
+) returns uuid
+language plpgsql security definer set search_path = '' as $
+declare v_journal_id uuid;
+begin
+  if p_amount_cents is null or p_amount_cents <= 0 then
+    raise exception 'amount_cents must be positive';
+  end if;
+  if p_debit_account_id = p_credit_account_id then
+    raise exception 'debit and credit accounts must differ';
+  end if;
+  insert into public.journals (type, status, idempotency_key, description, created_by)
+  values (p_type, 'posted', p_idempotency_key, p_description, p_created_by)
+  on conflict (idempotency_key) do update set description = excluded.description
+  returning id into v_journal_id;
+  if exists (select 1 from public.ledger_entries where journal_id = v_journal_id) then
+    return v_journal_id;
+  end if;
+  insert into public.ledger_entries
+    (journal_id, account_id, direction, amount_cents, currency, entry_type, reference_type, reference_id)
+  values
+    (v_journal_id, p_debit_account_id, 'debit', p_amount_cents, p_currency, p_entry_type, p_reference_type, p_reference_id),
+    (v_journal_id, p_credit_account_id, 'credit', p_amount_cents, p_currency, p_entry_type, p_reference_type, p_reference_id);
+  return v_journal_id;
+end $;
+
+revoke all on function public.ensure_platform_clearing() from public, anon, authenticated;
+revoke all on function public.post_balanced_journal(text,text,text,uuid,uuid,uuid,integer,char,text,text,uuid)
+  from public, anon, authenticated;
+grant execute on function public.ensure_platform_clearing() to service_role;
+grant execute on function public.post_balanced_journal(text,text,text,uuid,uuid,uuid,integer,char,text,text,uuid)
+  to service_role;
+
 commit;
