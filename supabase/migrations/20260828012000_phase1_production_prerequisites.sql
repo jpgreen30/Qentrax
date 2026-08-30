@@ -232,7 +232,7 @@ create policy campaign_daily_usage_tenant on public.campaign_daily_usage
 
 
 create or replace function public.ensure_platform_clearing() returns uuid
-language plpgsql security definer set search_path = '' as $
+language plpgsql security definer set search_path = '' as $function$
 declare v_org_id uuid; v_acct_id uuid;
 begin
   select id into v_org_id from public.organizations where type = 'platform' limit 1;
@@ -249,7 +249,7 @@ begin
     returning id into v_acct_id;
   end if;
   return v_acct_id;
-end $;
+end $function$;
 
 create or replace function public.post_balanced_journal(
   p_type text, p_idempotency_key text, p_description text, p_created_by uuid,
@@ -257,7 +257,7 @@ create or replace function public.post_balanced_journal(
   p_currency char(3) default 'USD', p_entry_type text default 'funding',
   p_reference_type text default null, p_reference_id uuid default null
 ) returns uuid
-language plpgsql security definer set search_path = '' as $
+language plpgsql security definer set search_path = '' as $function$
 declare v_journal_id uuid;
 begin
   if p_amount_cents is null or p_amount_cents <= 0 then
@@ -279,7 +279,7 @@ begin
     (v_journal_id, p_debit_account_id, 'debit', p_amount_cents, p_currency, p_entry_type, p_reference_type, p_reference_id),
     (v_journal_id, p_credit_account_id, 'credit', p_amount_cents, p_currency, p_entry_type, p_reference_type, p_reference_id);
   return v_journal_id;
-end $;
+end $function$;
 
 revoke all on function public.ensure_platform_clearing() from public, anon, authenticated;
 revoke all on function public.post_balanced_journal(text,text,text,uuid,uuid,uuid,integer,char,text,text,uuid)
