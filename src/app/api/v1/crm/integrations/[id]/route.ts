@@ -1,41 +1,45 @@
-import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
+import { apiError } from "@/lib/api";
+import { requestId } from "@/lib/request-id";
+import { requireAdvertiserCrmAccess } from "@/lib/services/crm-access";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const request_id = requestId(request.headers.get("x-request-id"));
   const { id } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
+  const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data: config, error: configError } = await supabase
     .from("crm_integrations")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    return Response.json(
-      { success: false, message: "CRM integration not found" },
-      { status: 404 }
-    );
+  if (configError || !config) {
+    return apiError("NOT_FOUND", "CRM integration not found.", request_id, 404);
   }
 
-  return Response.json({ success: true, data });
+  const access = await requireAdvertiserCrmAccess(config.organization_id as string, {
+    supabase,
+  });
+  if (!access.ok) {
+    const status = access.code === "AUTH_REQUIRED" ? 401 : access.code === "VALIDATION_ERROR" ? 400 : 403;
+    return apiError(access.code, access.message, request_id, status);
+  }
+
+  return Response.json({ success: true, data: config });
 }
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const request_id = requestId(request.headers.get("x-request-id"));
   const { id } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
+  const supabase = await createClient();
 
   const body = await request.json();
   const updates: Record<string, unknown> = {};
@@ -48,6 +52,24 @@ export async function PATCH(
     "sync_enabled",
     "sync_frequency_minutes",
   ];
+
+  const { data: existing, error: existingError } = await supabase
+    .from("crm_integrations")
+    .select("organization_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (existingError || !existing) {
+    return apiError("NOT_FOUND", "CRM integration not found.", request_id, 404);
+  }
+
+  const access = await requireAdvertiserCrmAccess(existing.organization_id as string, {
+    supabase,
+  });
+  if (!access.ok) {
+    const status = access.code === "AUTH_REQUIRED" ? 401 : access.code === "VALIDATION_ERROR" ? 400 : 403;
+    return apiError(access.code, access.message, request_id, status);
+  }
 
   for (const field of allowedFields) {
     if (field in body) {
@@ -63,10 +85,7 @@ export async function PATCH(
     .eq("id", id);
 
   if (error) {
-    return Response.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+    return apiError("INTERNAL_ERROR", error.message, request_id, 500);
   }
 
   return Response.json({ success: true, message: "Integration updated" });
@@ -76,11 +95,27 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const request_id = requestId(request.headers.get("x-request-id"));
   const { id } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-  );
+  const supabase = await createClient();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("crm_integrations")
+    .select("organization_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (existingError || !existing) {
+    return apiError("NOT_FOUND", "CRM integration not found.", request_id, 404);
+  }
+
+  const access = await requireAdvertiserCrmAccess(existing.organization_id as string, {
+    supabase,
+  });
+  if (!access.ok) {
+    const status = access.code === "AUTH_REQUIRED" ? 401 : access.code === "VALIDATION_ERROR" ? 400 : 403;
+    return apiError(access.code, access.message, request_id, status);
+  }
 
   const { error } = await supabase
     .from("crm_integrations")
@@ -88,10 +123,7 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
-    return Response.json(
-      { success: false, message: error.message },
-      { status: 500 }
-    );
+    return apiError("INTERNAL_ERROR", error.message, request_id, 500);
   }
 
   return Response.json({ success: true, message: "Integration deleted" });

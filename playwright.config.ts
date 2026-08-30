@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { chromium, defineConfig, devices } from "@playwright/test";
 
 /**
  * Browser end-to-end configuration.
@@ -25,7 +25,9 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
-    launchOptions: { executablePath: process.env.E2E_CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" },
+    launchOptions: {
+      executablePath: process.env.E2E_CHROME ?? chromium.executablePath(),
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
