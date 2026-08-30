@@ -93,3 +93,26 @@
 .fieldActions form{display:inline}
 .fieldActions button{background:#0e1a1d;border:1px solid #23383c;color:#8fa3a8;border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer}
 .fieldActions button:hover{border-color:#caff4b;color:#caff4b}
+
+/* Advertiser marketplace and lead specification. */
+.offerGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+.offerCard{background:#0d1a1e;border:1px solid #16262a;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.offerCard header .status{font-size:10px;letter-spacing:.1em;color:#caff4b}
+.offerCard h2{margin:6px 0 0;font-size:18px;color:#e7f2f2}
+.offerCard p{margin:0;color:#8fa3a8;font-size:13px;line-height:1.5;flex:1}
+.offerCard dl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0}
+.offerCard dl div{display:flex;flex-direction:column;gap:3px}
+.offerCard dt{font-size:9px;letter-spacing:.09em;color:#6a7c80}
+.offerCard dd{margin:0;font-size:13px;color:#e7f2f2}
+.offerCta{font-size:11px;letter-spacing:.08em;color:#caff4b;text-decoration:none;border-top:1px solid #16262a;padding-top:12px}
+.offerCta:hover{color:#e7f2f2}
+.termsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:16px 18px}
+.termsGrid div{display:flex;flex-direction:column;gap:4px}
+.termsGrid dt{font-size:10px;letter-spacing:.08em;color:#6a7c80}
+.termsGrid dd{margin:0;font-size:13px;color:#e7f2f2}
+.tableRow.specRow,.tableHead.specRow{grid-template-columns:1.2fr 1.6fr .8fr .8fr .6fr .7fr 1.2fr 1.2fr;font-size:12px;align-items:start}
+.specRow code{background:#0e1a1d;border:1px solid #23383c;border-radius:4px;padding:1px 5px;color:#caff4b;font-size:11px}
+.specHint{display:block;color:#6a7c80;font-size:10px;margin-top:2px;line-height:1.4}
+.codeBlock{background:#081114;border:1px solid #16262a;border-radius:8px;padding:14px 16px;margin:0 18px 18px;overflow-x:auto;font-size:12px;line-height:1.6;color:#b8d0d0}
+.downloadRow{display:flex;flex-wrap:wrap;gap:10px;padding:0 18px 16px}
+.downloadRow .rangeExport{margin-left:0}

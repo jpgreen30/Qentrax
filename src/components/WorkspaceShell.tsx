@@ -9,6 +9,7 @@ const NAV: Record<
 > = {
   advertiser: [
     { icon: "⌂", label: "Overview", path: "" },
+    { icon: "◈", label: "Marketplace", path: "/marketplace" },
     { icon: "◎", label: "Campaigns", path: "/campaigns" },
     { icon: "◇", label: "Opportunities", path: "/opportunities" },
     { icon: "$", label: "Billing", path: "/billing" },
