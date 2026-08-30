@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireAuthContext } from "@/lib/auth-context";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isStripeConfigured } from "@/lib/stripe/client";
 import { createFundingCheckoutSession, ensureStripeCustomer } from "@/lib/stripe/funding";
 import { createClient } from "@/lib/supabase/server";
@@ -82,13 +83,13 @@ export async function postTestFunding(formData: FormData) {
   const amountCents = Number(formData.get("amount_cents") ?? 50000);
   if (!organizationId) redirect("/workspace");
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const idempotencyKey = `test-fund-${organizationId}-${Date.now()}`;
-  const { error } = await supabase.rpc("record_test_funding", {
+  const { error } = await supabase.rpc("record_stripe_funding", {
     p_organization_id: organizationId,
     p_amount_cents: Number.isFinite(amountCents) ? amountCents : 50000,
     p_idempotency_key: idempotencyKey,
-    p_description: "Test-mode funding (Stripe webhook simulation)",
+    p_description: "Test-mode funding (ledger simulation)",
   });
 
   redirect(
