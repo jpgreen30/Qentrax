@@ -42,4 +42,6 @@ QENTRAX_ALLOW_SIMULATED_DELIVERY=1
 QENTRAX_ALLOW_LOOPBACK_DELIVERY=1
 ENV
 
+npm run build
+
 echo "stack up: postgrest :3001, gateway :54321"
