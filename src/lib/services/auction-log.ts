@@ -62,6 +62,9 @@ export async function recordAuctionDecision(
       bid_type: candidate.bid_type,
       reason_code: candidate.reason_code,
       strategy: decision.strategy,
+      weight: candidate.weight,
+      priority: candidate.priority,
+      remaining_capacity: candidate.remaining_capacity,
     },
   }));
 
@@ -115,6 +118,9 @@ export async function getAuctionDecision(
       bid_type: c.rule_snapshot_json?.bid_type || "fixed",
       rank: c.rank,
       reason_code: c.reason_codes_json?.[0],
+      weight: c.rule_snapshot_json?.weight ?? 1,
+      priority: c.rule_snapshot_json?.priority ?? 0,
+      remaining_capacity: c.rule_snapshot_json?.remaining_capacity ?? null,
     })),
   };
 }
