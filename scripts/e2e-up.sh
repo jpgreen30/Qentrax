@@ -6,6 +6,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PGHOST="${PGHOST:-/var/tmp}" PGPORT="${PGPORT:-55432}" PGUSER="${PGUSER:-postgres}"
 PGRST_BIN="${PGRST_BIN:-$(command -v postgrest || echo /var/tmp/postgrest)}"
 
+if ! grep -q "buyer.qentrax.test" /etc/hosts; then
+  echo "127.0.0.1 buyer.qentrax.test" | sudo tee -a /etc/hosts >/dev/null
+fi
+
 # The harness signing key is generated locally and never committed.
 if [ ! -s "$ROOT/e2e/harness/jwt-private.pem" ]; then
   node "$ROOT/e2e/harness/generate-keys.mjs"
