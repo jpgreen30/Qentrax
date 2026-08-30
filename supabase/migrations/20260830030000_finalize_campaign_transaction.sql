@@ -67,8 +67,8 @@ begin
     insert into public.transaction_events (
       transaction_id, event_type, reason_code, actor_type, payload_json, occurred_at
     ) values (
-      v_transaction.id, 'charged', pg_catalog.coalesce(p_reason_code, 'BUYER_ACCEPTED'),
-      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id), pg_catalog.now()
+      v_transaction.id, 'charged', null,
+      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reason_code', pg_catalog.coalesce(p_reason_code, 'BUYER_ACCEPTED')), pg_catalog.now()
     );
 
     return query select v_transaction.id, 'charged'::text, true, null::text;
@@ -89,8 +89,8 @@ begin
     insert into public.transaction_events (
       transaction_id, event_type, reason_code, actor_type, payload_json, occurred_at
     ) values (
-      v_transaction.id, 'error', pg_catalog.coalesce(p_reason_code, 'DELIVERY_FAILED'),
-      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reservation_released', true),
+      v_transaction.id, 'error', null,
+      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reservation_released', true, 'reason_code', pg_catalog.coalesce(p_reason_code, 'DELIVERY_FAILED')),
       pg_catalog.now()
     );
 
