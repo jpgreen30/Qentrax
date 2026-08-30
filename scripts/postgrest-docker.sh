@@ -17,7 +17,7 @@ if command -v docker &> /dev/null; then
   CONF_DIR="$(cd "$(dirname "$CONF_PATH")" && pwd)"
   CONF_FILE="$(basename "$CONF_PATH")"
   IMAGE="${PGRST_DOCKER_IMAGE:-postgrest/postgrest:v16.2}"
-  exec docker run --rm --network host -v "$CONF_DIR:/config:ro" "$IMAGE" postgrest "/config/$CONF_FILE"
+  exec docker run --rm --network host -v "$CONF_DIR:/config:ro" -w /config "$IMAGE" postgrest "/config/$CONF_FILE"
 else
   # Fall back to native binary (must be in PATH or downloaded)
   if ! command -v postgrest &> /dev/null; then
