@@ -114,10 +114,10 @@ select jsonb_build_object(
   'charged_cents', coalesce((select sum(charged_cents) from public.campaign_daily_usage), 0),
   'reservation_count', coalesce((select sum(reservation_count) from public.campaign_daily_usage), 0),
   'accepted_count', coalesce((select sum(accepted_count) from public.campaign_daily_usage), 0),
-  'campaign_status', coalesce((select status from public.campaigns where id = '$CAMPAIGN_ID'), 'missing'),
+  'campaign_status', coalesce((select status::text from public.campaigns where id = '$CAMPAIGN_ID'), 'missing'),
   'campaign_timezone', coalesce((select timezone from public.campaigns where id = '$CAMPAIGN_ID'), 'missing'),
-  'delivery_status', coalesce((select status from public.deliveries where id = '$DELIVERY_ID'), 'missing'),
-  'transaction_status', coalesce((select status from public.transactions where opportunity_id = '$OPPORTUNITY_ID'), 'missing'),
+  'delivery_status', coalesce((select status::text from public.deliveries where id = '$DELIVERY_ID'), 'missing'),
+  'transaction_status', coalesce((select status::text from public.transactions where opportunity_id = '$OPPORTUNITY_ID'), 'missing'),
   'transaction_price_cents', coalesce((select advertiser_price_cents from public.transactions where opportunity_id = '$OPPORTUNITY_ID'), 0),
   'transaction_margin_cents', coalesce((select platform_margin_cents from public.transactions where opportunity_id = '$OPPORTUNITY_ID'), 0)
 )::text;
