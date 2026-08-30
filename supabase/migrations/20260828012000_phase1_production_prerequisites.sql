@@ -162,6 +162,35 @@ create table if not exists public.campaign_daily_usage (
   primary key(campaign_id, usage_date)
 );
 
+
+create or replace function public.current_app_user_id() returns uuid
+language sql stable security definer set search_path = '' as $function$
+  select u.id from public.users u
+  where u.auth_subject = (select auth.uid()) and u.status = 'active'
+  limit 1;
+$function$;
+
+create or replace function public.is_platform_admin() returns boolean
+language sql stable security definer set search_path = '' as $function$
+  select exists (
+    select 1
+    from public.organization_members om
+    join public.users u on u.id = om.user_id
+    join public.roles r on r.id = om.role_id
+    join public.organizations o on o.id = om.organization_id
+    where u.auth_subject = (select auth.uid())
+      and u.status = 'active'
+      and om.status = 'active'
+      and o.type = 'platform'
+      and r.code in ('admin_superuser', 'admin_compliance', 'admin_finance')
+  );
+$function$;
+
+revoke all on function public.current_app_user_id() from public, anon;
+revoke all on function public.is_platform_admin() from public, anon;
+grant execute on function public.current_app_user_id() to authenticated, service_role;
+grant execute on function public.is_platform_admin() to authenticated, service_role;
+
 alter table public.organization_profiles enable row level security;
 alter table public.agreements enable row level security;
 alter table public.agreement_acceptances enable row level security;
