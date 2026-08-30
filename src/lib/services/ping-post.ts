@@ -229,7 +229,7 @@ export async function post(
   // Load opportunity by public txn id
   const { data: opp, error: oppError } = await supabase
     .from("opportunities")
-    .select("id, source_id, vertical_id, product_id, status, publisher_org_id")
+    .select("id, source_id, external_submission_id, vertical_id, product_id, status, publisher_org_id")
     .eq("public_transaction_id", public_transaction_id)
     .maybeSingle();
 
@@ -242,7 +242,7 @@ export async function post(
   }
 
   // Verify source/external_submission_id match
-  if (opp.source_id !== source_id || external_submission_id !== external_submission_id) {
+  if (opp.source_id !== source_id || opp.external_submission_id !== external_submission_id) {
     return {
       ok: false,
       error_code: "IDEMPOTENCY_MISMATCH",
@@ -309,50 +309,54 @@ export async function post(
     };
   }
 
-  // Create transaction record (reserves budget)
+  // Atomically enforce idempotency, budget, and capacity while reserving.
   const idempotencyKey = `${source_id}:${external_submission_id}:${public_transaction_id}`;
-  const { data: txn, error: txnError } = await supabase
-    .from("transactions")
-    .insert({
-      opportunity_id: opp.id,
-      publisher_org_id: opp.publisher_org_id,
-      advertiser_org_id: campaign.advertiser_org_id,
-      campaign_id: campaign.id,
-      status: "reserved",
-      advertiser_price_cents: auctionRun.winning_bid_cents,
-      publisher_amount_cents: Math.floor((auctionRun.winning_bid_cents * 0.85) || 0), // 85/15 split placeholder
-      platform_margin_cents: Math.ceil((auctionRun.winning_bid_cents * 0.15) || 0),
-      currency: "USD",
-      idempotency_key: idempotencyKey,
-      reserved_at: new Date().toISOString(),
+  const { data: reservation, error: reservationError } = await supabase
+    .rpc("reserve_campaign_transaction", {
+      p_opportunity_id: opp.id,
+      p_publisher_org_id: opp.publisher_org_id,
+      p_advertiser_org_id: campaign.advertiser_org_id,
+      p_campaign_id: campaign.id,
+      p_price_cents: auctionRun.winning_bid_cents,
+      p_idempotency_key: idempotencyKey,
     })
-    .select("id")
     .single();
 
-  if (txnError) {
-    // Duplicate idempotency key; retrieve and return existing
-    const { data: existing } = await supabase
-      .from("transactions")
-      .select("id, advertiser_price_cents, status")
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
-
-    if (existing) {
-      return {
-        ok: true,
-        transaction_id: existing.id,
-        delivered_to_campaign_id: campaign.id,
-        status: existing.status === "charged" ? "accepted" : "delivered",
-        charge_cents: existing.advertiser_price_cents,
-      };
-    }
-
+  if (reservationError || !reservation) {
     return {
       ok: false,
       error_code: "TRANSACTION_CREATE_FAILED",
-      error_message: txnError.message,
+      error_message: reservationError?.message || "Transaction reservation failed",
     };
   }
+
+  if (reservation.error_code) {
+    return {
+      ok: false,
+      error_code: reservation.error_code,
+      error_message: "Campaign cannot accept this transaction",
+    };
+  }
+
+  if (!reservation.transaction_id) {
+    return {
+      ok: false,
+      error_code: "TRANSACTION_CREATE_FAILED",
+      error_message: "Transaction reservation returned no transaction",
+    };
+  }
+
+  if (!reservation.created) {
+    return {
+      ok: true,
+      transaction_id: reservation.transaction_id,
+      delivered_to_campaign_id: campaign.id,
+      status: reservation.transaction_status === "charged" ? "accepted" : "delivered",
+      charge_cents: reservation.charge_cents,
+    };
+  }
+
+  const txn = { id: reservation.transaction_id };
 
   // Record transaction event
   await supabase.from("transaction_events").insert({
