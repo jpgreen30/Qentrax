@@ -121,7 +121,10 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
   await page.locator('input[name="timeout_ms"]').fill("8000");
   await Promise.all([
     page.waitForURL(
-      (url) => url.pathname === "/workspace/advertiser/integrations" && url.searchParams.has("integration"),
+      (url) =>
+        url.pathname === "/workspace/advertiser/integrations" &&
+        url.searchParams.get("integration") !== null &&
+        url.searchParams.get("integration") !== "new",
       { timeout: 15000 },
     ),
     page.getByRole("button", { name: "CREATE INTEGRATION" }).click(),
@@ -131,6 +134,7 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
 
   const integrationId = new URL(page.url()).searchParams.get("integration");
   expect(integrationId).toBeTruthy();
+  expect(integrationId).not.toBe("new");
   return integrationId!;
 }
 
