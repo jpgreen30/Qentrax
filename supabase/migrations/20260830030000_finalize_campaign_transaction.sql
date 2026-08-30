@@ -48,9 +48,9 @@ begin
 
   if p_accepted then
     update public.campaign_daily_usage u
-    set reserved_cents = pg_catalog.greatest(0, u.reserved_cents - v_transaction.advertiser_price_cents),
+    set reserved_cents = greatest(0, u.reserved_cents - v_transaction.advertiser_price_cents),
         charged_cents = u.charged_cents + v_transaction.advertiser_price_cents,
-        reservation_count = pg_catalog.greatest(0, u.reservation_count - 1),
+        reservation_count = greatest(0, u.reservation_count - 1),
         accepted_count = u.accepted_count + 1
     where u.campaign_id = v_transaction.campaign_id
       and u.usage_date = v_today;
@@ -68,14 +68,14 @@ begin
       transaction_id, event_type, reason_code, actor_type, payload_json, occurred_at
     ) values (
       v_transaction.id, 'charged', null,
-      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reason_code', pg_catalog.coalesce(p_reason_code, 'BUYER_ACCEPTED')), pg_catalog.now()
+      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reason_code', coalesce(p_reason_code, 'BUYER_ACCEPTED')), pg_catalog.now()
     );
 
     return query select v_transaction.id, 'charged'::text, true, null::text;
   else
     update public.campaign_daily_usage u
-    set reserved_cents = pg_catalog.greatest(0, u.reserved_cents - v_transaction.advertiser_price_cents),
-        reservation_count = pg_catalog.greatest(0, u.reservation_count - 1)
+    set reserved_cents = greatest(0, u.reserved_cents - v_transaction.advertiser_price_cents),
+        reservation_count = greatest(0, u.reservation_count - 1)
     where u.campaign_id = v_transaction.campaign_id
       and u.usage_date = v_today;
 
@@ -90,7 +90,7 @@ begin
       transaction_id, event_type, reason_code, actor_type, payload_json, occurred_at
     ) values (
       v_transaction.id, 'error', null,
-      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reservation_released', true, 'reason_code', pg_catalog.coalesce(p_reason_code, 'DELIVERY_FAILED')),
+      'system', pg_catalog.jsonb_build_object('delivery_id', p_delivery_id, 'reservation_released', true, 'reason_code', coalesce(p_reason_code, 'DELIVERY_FAILED')),
       pg_catalog.now()
     );
 
