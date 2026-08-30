@@ -5,6 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowSimulatedDelivery } from "@/lib/env";
 import { deliverToEndpoint, type DeliveryPayload } from "./http-delivery";
+import { requestId } from "@/lib/request-id";
 
 export const DEFAULT_MAX_ATTEMPTS = 5;
 export const DEFAULT_SLA_MINUTES = 30;
@@ -170,6 +171,7 @@ type DueRow = {
   max_attempts: number;
   sla_due_at: string | null;
   request_snapshot_redacted: { payload?: DeliveryPayload } | null;
+  organization_id?: string | null;
 };
 
 export type RetryBatchResult = {
@@ -201,7 +203,7 @@ export async function processDueDeliveries(
   const { data: due, error } = await supabase
     .from("deliveries")
     .select(
-      "id, opportunity_id, campaign_id, auction_run_id, transaction_id, endpoint_id, endpoint_url, attempt_number, max_attempts, sla_due_at, request_snapshot_redacted",
+      "id, opportunity_id, campaign_id, auction_run_id, transaction_id, endpoint_id, endpoint_url, attempt_number, max_attempts, sla_due_at, request_snapshot_redacted, organization_id",
     )
     .in("status", ["rejected", "timed_out", "failed", "acknowledged"])
     .not("next_attempt_at", "is", null)
@@ -271,12 +273,21 @@ export async function processDueDeliveries(
         ? new Date(Date.now() + computeBackoffMs(nextAttempt)).toISOString()
         : null;
 
-      await supabase.from("deliveries").insert({
+      // deliveries.request_id is NOT NULL with no default. This insert
+      // previously omitted it and never checked the returned error, so every
+      // retry attempt was silently discarded: the worker made the HTTP request,
+      // threw the outcome away, and — because next_attempt_at was already
+      // cleared above — the delivery was dropped after one attempt with no
+      // record, no retry and no dead-letter.
+      const attemptRequestId = requestId(null);
+      const { error: attemptError } = await supabase.from("deliveries").insert({
         opportunity_id: row.opportunity_id,
         campaign_id: row.campaign_id,
         auction_run_id: row.auction_run_id,
         endpoint_id: row.endpoint_id,
         transaction_id: row.transaction_id,
+        organization_id: row.organization_id ?? null,
+        request_id: attemptRequestId,
         endpoint_url: result.endpoint_url ?? endpointUrl,
         attempt_number: nextAttempt,
         status: dbStatus,
@@ -291,13 +302,31 @@ export async function processDueDeliveries(
           reason_code: result.reason_code,
         },
         request_snapshot_redacted: { payload },
-        delivered_at: result.status === "accepted" ? new Date().toISOString() : null,
+        // The schema records sent_at/accepted_at; there is no delivered_at
+        // column, and writing one made every insert fail.
+        sent_at: new Date().toISOString(),
+        accepted_at: result.status === "accepted" ? new Date().toISOString() : null,
         next_attempt_at: nextAttemptAt,
         max_attempts: row.max_attempts ?? DEFAULT_MAX_ATTEMPTS,
         last_error: result.error_message,
         sla_due_at: row.sla_due_at,
         delivery_mode: result.mode,
       });
+
+      if (attemptError) {
+        // The attempt happened but could not be recorded. Restore the schedule
+        // so the delivery is retried rather than lost, and surface the failure
+        // instead of reporting a clean batch.
+        out.errors.push(`attempt not recorded (${row.id}): ${attemptError.message}`);
+        if (nextAttemptAt) {
+          await supabase
+            .from("deliveries")
+            .update({ next_attempt_at: nextAttemptAt })
+            .eq("id", row.id);
+        }
+        out.failed += 1;
+        continue;
+      }
 
       if (result.status === "accepted") {
         out.succeeded += 1;

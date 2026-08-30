@@ -12,6 +12,7 @@ const NAV: Record<
     { icon: "◈", label: "Marketplace", path: "/marketplace" },
     { icon: "◎", label: "Campaigns", path: "/campaigns" },
     { icon: "◇", label: "Opportunities", path: "/opportunities" },
+    { icon: "⇄", label: "Integrations", path: "/integrations" },
     { icon: "$", label: "Billing", path: "/billing" },
     { icon: "▦", label: "Reports", path: "/reports" },
     { icon: "◎", label: "Team", path: "/team" },
