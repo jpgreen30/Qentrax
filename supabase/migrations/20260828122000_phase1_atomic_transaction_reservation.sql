@@ -32,7 +32,7 @@ begin
     return;
   end if;
 
-  if p_idempotency_key is null or pg_catalog.length(pg_catalog.trim(p_idempotency_key)) = 0 then
+  if p_idempotency_key is null or pg_catalog.length(pg_catalog.btrim(p_idempotency_key)) = 0 then
     return query select null::uuid, null::text, null::integer, false, 'INVALID_IDEMPOTENCY_KEY'::text;
     return;
   end if;
