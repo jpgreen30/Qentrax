@@ -696,6 +696,54 @@ verify_sql_tests() {
   done
 }
 
+bootstrap_database() {
+  psql -q -v ON_ERROR_STOP=1 -d postgres <<SQL
+drop database if exists ${DB};
+create database ${DB};
+SQL
+
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" <<'SQL'
+do $$
+declare r text;
+begin
+  foreach r in array array['anon','authenticated','service_role','supabase_auth_admin','authenticator'] loop
+    if not exists (select 1 from pg_roles where rolname = r) then
+      execute format('create role %I nologin noinherit', r);
+    end if;
+  end loop;
+end $$;
+alter role service_role bypassrls;
+
+create extension if not exists pgcrypto;
+create schema if not exists auth;
+
+create or replace function auth.uid() returns uuid language sql stable as
+  $fn$ select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+  )::uuid $fn$;
+create or replace function auth.role() returns text language sql stable as
+  $fn$ select coalesce(
+    nullif(current_setting('request.jwt.claim.role', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role')
+  ) $fn$;
+
+grant usage on schema auth to anon, authenticated, service_role;
+
+create table if not exists auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text,
+  raw_user_meta_data jsonb default '{}'::jsonb,
+  raw_app_meta_data jsonb default '{}'::jsonb,
+  last_sign_in_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+grant execute on function auth.uid(), auth.role() to anon, authenticated, service_role;
+grant select on auth.users to anon, authenticated, service_role;
+SQL
+}
+
 main() {
   log "CURRENT_HEAD=$(git -C "$ROOT" rev-parse --short HEAD)"
   log "LIVE_MIGRATION_BOUNDARY=20260830030652_finalize_campaign_transaction"
@@ -705,6 +753,7 @@ main() {
   log "DELTA_MIGRATION_COUNT=9"
 
   "$ROOT/scripts/start-postgres.sh"
+  bootstrap_database
 
   apply_migrations_through "$LIVE_BOUNDARY_VERSION"
   seed_baseline_data
