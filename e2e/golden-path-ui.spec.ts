@@ -566,6 +566,7 @@ test("golden path reaches billing, ping, post, conversion, reporting, and audit"
 
   // The earlier active campaign from the lightweight activation test can tie
   // this new campaign on bid, so park it before we run the real delivery path.
+  await pauseCampaignByName(context, CAMPAIGN_NAME);
   await pauseCampaignByName(context, `${CAMPAIGN_NAME} delivered`);
   assertClean(problems, "billing and campaign parking");
 
