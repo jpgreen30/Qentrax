@@ -160,7 +160,11 @@ async function createDeliveredCampaign(page: Page, integrationId: string) {
 
   await page.getByRole("button", { name: "ACTIVATE CAMPAIGN" }).click();
   await expect(page).toHaveURL(/\/workspace\/advertiser\/campaigns\?org=/);
-  await expect(page.getByText(CAMPAIGN_NAME)).toBeVisible();
+  const deliveredRow = page.locator(".tableRow.campaigns", {
+    hasText: `${CAMPAIGN_NAME} delivered`,
+  });
+  await expect(deliveredRow).toBeVisible();
+  await expect(deliveredRow).toContainText("Live");
 }
 
 async function createPublisherSource(page: Page): Promise<string> {
