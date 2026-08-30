@@ -178,9 +178,11 @@ async function createPublisherSource(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Create draft source" }).click();
 
   await expect(page).toHaveURL(/\/workspace\/publisher\?org=/);
-  const sourceForm = page.locator("form", {
-    has: page.getByRole("button", { name: new RegExp(`Submit test lead · ${SOURCE_NAME}`) }),
+  const sourceButton = page.getByRole("button", {
+    name: new RegExp(`Submit test lead.*${SOURCE_NAME}`),
   });
+  await expect(sourceButton).toBeVisible();
+  const sourceForm = page.locator("form", { has: sourceButton });
   const sourceId = await sourceForm.locator('input[name="source_id"]').inputValue();
   expect(sourceId).toBeTruthy();
   return sourceId;
