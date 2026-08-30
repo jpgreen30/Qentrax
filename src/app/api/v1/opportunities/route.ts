@@ -186,7 +186,7 @@ export async function POST(request: Request) {
       vertical_id: v.id,
       product_id: productId,
       external_submission_id: body.external_submission_id ?? null,
-      status: "validating",
+      status: "validation_pending",
       schema_version: "v1",
       ping_attributes: validated.pingAttributes,
     })
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     .insert({
       opportunity_id: opportunity.id,
       pipeline_version: qscore.version,
-      status: "completed",
+      status: "passed",
       composite_score: qscore.score,
       completed_at: new Date().toISOString(),
     })
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
       qscore.components.map((c) => ({
         validation_run_id: run.id,
         check_code: c.code,
-        outcome: c.status === "pass" ? "pass" : c.status === "fail" ? "fail" : "skip",
+        outcome: c.status === "pass" ? "pass" : c.status === "fail" ? "fail" : "unavailable",
         reason_code: c.code,
       })),
     );
@@ -244,7 +244,7 @@ export async function POST(request: Request) {
   await supabaseClient
     .from("opportunities")
     .update({
-      status: "ready",
+      status: "eligible",
       updated_at: new Date().toISOString(),
     })
     .eq("id", opportunity.id);

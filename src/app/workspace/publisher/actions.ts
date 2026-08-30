@@ -89,7 +89,7 @@ export async function submitTestOpportunity(formData: FormData) {
       source_id: sourceId,
       vertical_id: vertical?.id ?? null,
       external_submission_id: externalId,
-      status: "ready",
+      status: "eligible",
       schema_version: "v1",
       ping_attributes: validated.pingAttributes,
     })
