@@ -13,4 +13,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npx --yes secretlint "**/*"
+      - name: Scan for committed secrets
+        run: |
+          npx --yes \
+            --package secretlint \
+            --package @secretlint/secretlint-rule-aws \
+            --package @secretlint/secretlint-rule-github-token \
+            --package @secretlint/secretlint-rule-slack \
+            --package @secretlint/secretlint-rule-stripe \
+            secretlint "**/*"
