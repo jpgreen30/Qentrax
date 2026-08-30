@@ -15,7 +15,21 @@ import { runAuction, RoutingStrategy } from "./routing";
 import { recordAuctionDecision } from "./auction-log";
 import { enqueueAndAttemptDelivery } from "../delivery/retry";
 
-const BID_EXPIRATION_MS = 30000; // 30 seconds, configurable
+export const BID_EXPIRATION_MS = 30000;
+
+export function bidExpiresAt(completedAt: string): Date {
+  return new Date(new Date(completedAt).getTime() + BID_EXPIRATION_MS);
+}
+
+export function hasConsentEvidence(consent: Record<string, unknown> | null | undefined): boolean {
+  return Boolean(consent && Object.keys(consent).length > 0);
+}
+
+export function postStatusForTransaction(status: string): "delivered" | "accepted" | "rejected" {
+  if (status === "charged" || status === "settled") return "accepted";
+  if (status === "returned") return "rejected";
+  return "delivered";
+}
 
 export type PingInput = {
   source_id: string;
@@ -94,9 +108,7 @@ export async function ping(
       .maybeSingle();
 
     if (existingAuction) {
-      const expiresAt = new Date(
-        new Date(existingAuction.completed_at).getTime() + BID_EXPIRATION_MS,
-      );
+      const expiresAt = bidExpiresAt(existingAuction.completed_at);
       if (new Date() < expiresAt) {
         return {
           ok: true,
@@ -229,7 +241,7 @@ export async function post(
     consent,
   } = input;
 
-  if (!consent || Object.keys(consent).length === 0) {
+  if (!hasConsentEvidence(consent)) {
     return {
       ok: false,
       error_code: "CONSENT_REQUIRED",
@@ -272,12 +284,7 @@ export async function post(
       ok: true,
       transaction_id: existingTxn.id,
       delivered_to_campaign_id: existingTxn.campaign_id,
-      status:
-        existingTxn.status === "charged" || existingTxn.status === "settled"
-          ? "accepted"
-          : existingTxn.status === "returned"
-            ? "rejected"
-            : "delivered",
+      status: postStatusForTransaction(existingTxn.status),
       charge_cents: existingTxn.advertiser_price_cents,
     };
   }
@@ -296,14 +303,12 @@ export async function post(
     };
   }
 
-  const bidExpiresAt = new Date(
-    new Date(auctionRun.completed_at).getTime() + BID_EXPIRATION_MS,
-  );
-  if (new Date() > bidExpiresAt) {
+  const expiresAt = bidExpiresAt(auctionRun.completed_at);
+  if (new Date() > expiresAt) {
     return {
       ok: false,
       error_code: "BID_EXPIRED",
-      error_message: `Bid expired at ${bidExpiresAt.toISOString()}`,
+      error_message: `Bid expired at ${expiresAt.toISOString()}`,
     };
   }
 
@@ -362,13 +367,7 @@ export async function post(
       ok: true,
       transaction_id: typedReservation.transaction_id,
       delivered_to_campaign_id: campaign.id,
-      status:
-        typedReservation.transaction_status === "charged" ||
-        typedReservation.transaction_status === "settled"
-          ? "accepted"
-          : typedReservation.transaction_status === "returned"
-            ? "rejected"
-            : "delivered",
+      status: postStatusForTransaction(typedReservation.transaction_status ?? "reserved"),
       charge_cents: typedReservation.charge_cents ?? auctionRun.winning_bid_cents,
     };
   }
