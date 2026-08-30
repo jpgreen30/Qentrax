@@ -18,6 +18,8 @@ const ADMIN = { sub: "e2e00000-0000-0000-0000-00000000a001", email: "admin@qentr
 const BUYER = { sub: "e2e00000-0000-0000-0000-00000000a002", email: "buyer@atlas.test" };
 
 const ADVERTISER_ORG = "e2e00000-0000-0000-0000-00000000f002";
+const PUBLISHER_ORG = "e2e00000-0000-0000-0000-00000000f003";
+const SUPPLY = { sub: "e2e00000-0000-0000-0000-00000000a003", email: "supply@northstar.test" };
 
 // Unique per run so repeated runs do not collide on the slug/code constraints.
 // verticals.code admits lowercase letters and underscores only, so the suffix
@@ -311,4 +313,57 @@ test("the builder rejects a bid the offer would never honour", async ({ page, co
 
   // Console/network must stay clean even on the rejection path.
   expect(problems.console, "console errors on validation rejection").toEqual([]);
+});
+
+test("publisher discovers live demand and reads the intake contract", async ({ page, context }) => {
+  const problems = watch(page);
+  await signIn(context, SUPPLY, { supabaseUrl: SUPABASE_URL, appUrl: APP_URL });
+
+  await page.goto(`/workspace/publisher/demand?org=${PUBLISHER_ORG}`);
+  await expect(page.getByRole("heading", { name: "Available demand" })).toBeVisible();
+
+  // The offer published earlier is discoverable, because a campaign activated
+  // against it in the previous test.
+  await expect(page.getByRole("heading", { name: OFFER_NAME })).toBeVisible();
+
+  // The publisher sees their own rate, not the advertiser's price. The offer is
+  // fixed at $45.00 and the split is 85%, so the quoted rate is $38.25.
+  await expect(page.getByText("$38.25")).toBeVisible();
+  await expect(page.getByText("PER ACCEPTED LEAD")).toBeVisible();
+  await expect(page.getByText("$45.00")).toHaveCount(0);
+
+  // Geography, consent and lead age come from the offer's frozen terms.
+  await expect(page.getByText("CA", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONSENT REQUIRED")).toBeVisible();
+  await expect(page.getByText("30 min")).toBeVisible();
+
+  // Ping and post requirements are split correctly.
+  const ping = page.locator(".demandFields", { hasText: "PING FIELDS" });
+  const post = page.locator(".demandFields", { hasText: "POST FIELDS" });
+  await expect(ping.locator("code", { hasText: /^zip$/ })).toBeVisible();
+  await expect(ping.locator("code", { hasText: /^state$/ })).toBeVisible();
+  await expect(ping.locator("code", { hasText: /^email$/ })).toHaveCount(0);
+  await expect(post.locator("code", { hasText: /^email$/ })).toBeVisible();
+  await expect(post.locator("code", { hasText: /^roof_type$/ })).toBeVisible();
+
+  assertClean(problems, "publisher demand discovery");
+
+  // ---- intake guide --------------------------------------------------------
+  await page.getByRole("link", { name: /INTEGRATION GUIDE/ }).first().click();
+  await expect(page.getByRole("heading", { name: OFFER_NAME })).toBeVisible();
+
+  await expect(page.getByText("/api/v1/ping")).toBeVisible();
+  await expect(page.getByText("/api/v1/post")).toBeVisible();
+  await expect(page.getByText(/SCHEMA_MISSING_FIELD/)).toBeVisible();
+  await expect(page.getByText(/CONSENT_MISSING/)).toBeVisible();
+
+  // The documented examples must match the published contract, not prose.
+  const blocks = await page.locator("pre.codeBlock").allTextContents();
+  const pingExample = JSON.parse(blocks[0]);
+  const postExample = JSON.parse(blocks[1]);
+  expect(Object.keys(pingExample).sort()).toEqual(["state", "zip"]);
+  expect(postExample).toHaveProperty("email");
+  expect(["shingle", "tile", "metal"]).toContain(postExample.roof_type);
+
+  assertClean(problems, "publisher intake guide");
 });

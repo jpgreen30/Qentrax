@@ -18,6 +18,7 @@ const NAV: Record<
   ],
   publisher: [
     { icon: "⌂", label: "Overview", path: "" },
+    { icon: "◈", label: "Demand", path: "/demand" },
     { icon: "◎", label: "Sources", path: "/sources" },
     { icon: "◇", label: "Opportunities", path: "/opportunities" },
     { icon: "$", label: "Earnings", path: "/earnings" },

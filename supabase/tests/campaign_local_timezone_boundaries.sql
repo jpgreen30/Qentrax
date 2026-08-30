@@ -141,6 +141,42 @@ begin
     raise exception 'reserve and finalize disagreed on the usage bucket';
   end if;
 
+  ---------------------------------------------------------------------------
+  -- The publisher/platform split. src/lib/publisher/revenue-share.ts mirrors
+  -- this so publisher-facing surfaces can quote a rate before a transaction
+  -- exists; if either side changes, this fails rather than misquoting.
+  ---------------------------------------------------------------------------
+  declare
+    v_split_opp uuid;
+    v_split_res record;
+    v_txn transactions%rowtype;
+  begin
+    insert into opportunities (public_transaction_id, publisher_org_id, source_id, vertical_id)
+      values ('QL-SPLIT-1', v_org_pub, v_source, v_vertical) returning id into v_split_opp;
+
+    select * into v_split_res from reserve_campaign_transaction(
+      v_split_opp, v_org_pub, v_org_adv, v_campaign, 4501, 'split-1');
+    if v_split_res.error_code is not null then
+      raise exception 'split reservation failed: %', v_split_res.error_code;
+    end if;
+
+    select * into v_txn from transactions where id = v_split_res.transaction_id;
+
+    -- floor(4501 * 0.85) = 3825, leaving 676 platform margin.
+    if v_txn.publisher_amount_cents <> 3825 then
+      raise exception 'publisher share changed: expected 3825, got %',
+        v_txn.publisher_amount_cents;
+    end if;
+    if v_txn.platform_margin_cents <> 676 then
+      raise exception 'platform margin changed: expected 676, got %',
+        v_txn.platform_margin_cents;
+    end if;
+    if v_txn.publisher_amount_cents + v_txn.platform_margin_cents
+       <> v_txn.advertiser_price_cents then
+      raise exception 'split does not account for the whole price';
+    end if;
+  end;
+
   raise notice 'campaign_local_timezone_boundaries: PASS';
 end $$;
 
