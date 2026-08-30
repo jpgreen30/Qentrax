@@ -241,7 +241,19 @@ async function loadCampaignCounts(
   // Some preview/prod databases can lag migrations or temporarily reject the
   // RPC grant. The demand page should still render empty-state UX instead of
   // crashing the whole publisher workspace.
-  const admin = createAdminClient();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    return [];
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return [];
+  }
+
   const { data: fallback, error: fallbackError } = await admin
     .from("campaigns")
     .select("offer_id")
