@@ -11,6 +11,7 @@
 import { apiError, apiOk } from "@/lib/api";
 import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { post as postService } from "@/lib/services/ping-post";
 
 export async function POST(request: Request) {
@@ -60,7 +61,24 @@ export async function POST(request: Request) {
     return apiError("VALIDATION_ERROR", "attributes is required.", id, 400);
   }
 
-  const result = await postService(supabase, {
+  const { data: authorizedSource } = await supabase
+    .from("publisher_sources")
+    .select("id")
+    .eq("id", body.source_id)
+    .maybeSingle();
+
+  if (!authorizedSource) {
+    return apiError("SOURCE_NOT_FOUND", "Publisher source does not exist or is not accessible.", id, 404);
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return apiError("SERVICE_UNAVAILABLE", "Post service is not configured.", id, 503);
+  }
+
+  const result = await postService(admin, {
     public_transaction_id: body.public_transaction_id,
     source_id: body.source_id,
     external_submission_id: body.external_submission_id,
