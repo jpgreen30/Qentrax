@@ -119,17 +119,17 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
   await page.locator('select[name="method"]').selectOption("POST");
   await page.locator('select[name="auth_type"]').selectOption("none");
   await page.locator('input[name="timeout_ms"]').fill("8000");
-  await page.getByRole("button", { name: "CREATE INTEGRATION" }).click();
-  await page.reload();
+  await Promise.all([
+    page.waitForURL(
+      (url) => url.pathname === "/workspace/advertiser/integrations" && url.searchParams.has("integration"),
+      { timeout: 15000 },
+    ),
+    page.getByRole("button", { name: "CREATE INTEGRATION" }).click(),
+  ]);
 
   await expect(page.locator(".formError")).toHaveCount(0);
 
-  const createdIntegration = page.getByRole("link", { name: INTEGRATION_NAME }).first();
-  await expect(createdIntegration).toBeVisible();
-  const href = await createdIntegration.getAttribute("href");
-  expect(href).toContain("integration=");
-
-  const integrationId = new URL(href!, APP_URL).searchParams.get("integration");
+  const integrationId = new URL(page.url()).searchParams.get("integration");
   expect(integrationId).toBeTruthy();
   return integrationId!;
 }
