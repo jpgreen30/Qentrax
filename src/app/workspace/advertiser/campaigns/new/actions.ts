@@ -100,7 +100,8 @@ export async function createCampaign(formData: FormData) {
 
   if (endpointId) {
     // Resolve the chosen connector into the per-campaign endpoint row the
-    // delivery pipeline reads.
+    // delivery pipeline reads. It must start active, because post/delivery
+    // only looks at active campaign endpoints.
     const { data: connector } = await supabase
       .from("connectors")
       .select("id, connector_type, endpoint_url, timeout_ms")
@@ -114,7 +115,7 @@ export async function createCampaign(formData: FormData) {
         type: connector.connector_type,
         endpoint_url: connector.endpoint_url,
         timeout_ms: connector.timeout_ms ?? 10000,
-        status: "inactive",
+        status: "active",
       });
     }
   }

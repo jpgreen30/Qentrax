@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fieldsForPhase, type VerticalField } from "@/lib/offers/types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { publisherAmountCents } from "./revenue-share";
 
 /**
@@ -136,7 +137,7 @@ export async function listPublisherDemand(
     ...new Set(withVersion.map((o) => o.offer_versions!.schema_version_id)),
   ];
 
-  const [{ data: schemaVersions }, { data: fieldRows }, { data: campaignRows }] =
+  const [{ data: schemaVersions }, { data: fieldRows }] =
     await Promise.all([
       supabase
         .from("vertical_schema_versions")
@@ -151,10 +152,6 @@ export async function listPublisherDemand(
         )
         .in("schema_version_id", schemaIds)
         .order("sort_order"),
-      // Demand is only real if something is buying it. Campaigns are
-      // tenant-private, so a publisher cannot read them; this aggregate exposes
-      // the count without leaking any campaign row.
-      supabase.rpc("offer_active_campaign_counts"),
     ]);
 
   const schemaVersionNumber = new Map(
@@ -171,7 +168,8 @@ export async function listPublisherDemand(
   }
 
   const campaignCount = new Map<string, number>();
-  for (const c of (campaignRows ?? []) as { offer_id: string; active_campaigns: number }[]) {
+  const campaignCountRows = await loadCampaignCounts(supabase);
+  for (const c of campaignCountRows) {
     campaignCount.set(c.offer_id, Number(c.active_campaigns));
   }
 
@@ -230,4 +228,37 @@ export async function listPublisherDemand(
   return results.sort(
     (a, b) => (b.publisher_rate_cents ?? 0) - (a.publisher_rate_cents ?? 0),
   );
+}
+
+async function loadCampaignCounts(
+  supabase: SupabaseClient,
+): Promise<Array<{ offer_id: string; active_campaigns: number }>> {
+  const { data, error } = await supabase.rpc("offer_active_campaign_counts");
+  if (!error) {
+    return (data ?? []) as Array<{ offer_id: string; active_campaigns: number }>;
+  }
+
+  // Some preview/prod databases can lag migrations or temporarily reject the
+  // RPC grant. The demand page should still render empty-state UX instead of
+  // crashing the whole publisher workspace.
+  const admin = createAdminClient();
+  const { data: fallback, error: fallbackError } = await admin
+    .from("campaigns")
+    .select("offer_id")
+    .eq("status", "active");
+
+  if (fallbackError) {
+    return [];
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of (fallback ?? []) as Array<{ offer_id: string | null }>) {
+    if (!row.offer_id) continue;
+    counts.set(row.offer_id, (counts.get(row.offer_id) ?? 0) + 1);
+  }
+
+  return [...counts.entries()].map(([offer_id, active_campaigns]) => ({
+    offer_id,
+    active_campaigns,
+  }));
 }

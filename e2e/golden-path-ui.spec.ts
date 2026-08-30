@@ -1,5 +1,5 @@
 import { test, expect, type Page, type ConsoleMessage } from "@playwright/test";
-import { signIn } from "./harness/session";
+import { authCookieName, signIn } from "./harness/session";
 
 /**
  * Walks the chain an operator and a buyer actually take, through the product:
@@ -31,6 +31,12 @@ const VERTICAL_NAME = `E2E Solar ${RUN}`;
 const OFFER_SLUG = `e2e-ca-solar-${RUN}`;
 const OFFER_NAME = `E2E California Solar Exclusive ${RUN}`;
 const CAMPAIGN_NAME = `E2E CA Solar Buy ${RUN}`;
+const SOURCE_NAME = `E2E Source ${RUN}`;
+const INTEGRATION_NAME = `E2E Webhook ${RUN}`;
+const BUYER_ENDPOINT = `${APP_URL}/api/e2e/buyer`;
+const PING_EXTERNAL_ID = `e2e-ping-${RUN}`;
+const POST_EXTERNAL_ID = `e2e-post-${RUN}`;
+const CONVERSION_EXTERNAL_ID = `e2e-conv-${RUN}`;
 
 /** Console errors and failed requests are defects, not noise. */
 type Problems = { console: string[]; network: string[] };
@@ -60,6 +66,162 @@ function watch(page: Page): Problems {
 function assertClean(problems: Problems, stage: string) {
   expect(problems.console, `console errors during ${stage}`).toEqual([]);
   expect(problems.network, `failed requests during ${stage}`).toEqual([]);
+}
+
+function moneyToCents(value: string | null): number {
+  if (!value) return 0;
+  const parsed = Number(value.replace(/[$,]/g, ""));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+async function postJson(page: Page, path: string, body: Record<string, unknown>) {
+  return page.evaluate(
+    async ({ appUrl, path, body }) => {
+      const response = await fetch(new URL(path, appUrl).toString(), {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const text = await response.text();
+      let json: unknown = null;
+      if (text) {
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = text;
+        }
+      }
+      return { status: response.status, json };
+    },
+    { appUrl: APP_URL, path, body },
+  );
+}
+
+async function createAdvertiserIntegration(page: Page): Promise<string> {
+  await page.goto(`/workspace/advertiser/integrations?org=${ADVERTISER_ORG}&integration=new`);
+  await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
+
+  await page.locator('input[name="name"]').fill(INTEGRATION_NAME);
+  await page.locator('input[name="endpoint_url"]').fill(BUYER_ENDPOINT);
+  await page.locator('select[name="connector_type"]').selectOption("webhook");
+  await page.locator('select[name="method"]').selectOption("POST");
+  await page.locator('select[name="auth_type"]').selectOption("none");
+  await page.locator('input[name="timeout_ms"]').fill("8000");
+  await page.getByRole("button", { name: "CREATE INTEGRATION" }).click();
+
+  await expect(page.getByText("Integration created. Send a test lead before activating.")).toBeVisible();
+  const integrationId = new URL(page.url()).searchParams.get("integration");
+  expect(integrationId).toBeTruthy();
+  return integrationId!;
+}
+
+async function createDeliveredCampaign(page: Page, integrationId: string) {
+  await page.goto(`/workspace/advertiser/marketplace/${OFFER_SLUG}?org=${ADVERTISER_ORG}`);
+  await expect(page.getByRole("heading", { name: OFFER_NAME })).toBeVisible();
+  await page.getByRole("link", { name: /CREATE CAMPAIGN/ }).click();
+  await expect(page.getByRole("heading", { name: "New campaign" })).toBeVisible();
+
+  await page.locator('input[name="name"]').fill(CAMPAIGN_NAME);
+  await page.locator('input[name="base_bid"]').fill("45.00");
+  await page.locator('select[name="pacing"]').selectOption("EVEN");
+  await page.locator('input[name="states"]').fill("CA");
+  await page.locator('input[name="daily_budget"]').fill("500.00");
+  await page.locator('select[name="timezone"]').selectOption("America/Los_Angeles");
+  await page.locator('select[name="delivery_endpoint_id"]').selectOption(integrationId);
+  await page.getByRole("button", { name: /REVIEW CAMPAIGN/ }).click();
+
+  await expect(page.getByRole("heading", { name: CAMPAIGN_NAME })).toBeVisible();
+  await expect(page.getByText("webhook →")).toBeVisible();
+  await expect(page.getByText(BUYER_ENDPOINT)).toBeVisible();
+  await expect(page.getByText(/No delivery integration is attached/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "ACTIVATE CAMPAIGN" }).click();
+  await expect(page).toHaveURL(/\/workspace\/advertiser\/campaigns\?org=/);
+  await expect(page.getByText(CAMPAIGN_NAME)).toBeVisible();
+}
+
+async function createPublisherSource(page: Page): Promise<string> {
+  await page.goto(`/workspace/publisher/sources?org=${PUBLISHER_ORG}`);
+  await expect(page.getByRole("heading", { name: "Sources" })).toBeVisible();
+
+  await page.locator('input[name="name"]').fill(SOURCE_NAME);
+  await page.locator('input[name="channel"]').fill("web");
+  await page.locator('input[name="domain"]').fill("example.com");
+  await page.getByRole("button", { name: "Create draft source" }).click();
+
+  await expect(page).toHaveURL(/\/workspace\/publisher\?org=/);
+  const sourceForm = page.locator("form", {
+    has: page.getByRole("button", { name: new RegExp(`Submit test lead · ${SOURCE_NAME}`) }),
+  });
+  const sourceId = await sourceForm.locator('input[name="source_id"]').inputValue();
+  expect(sourceId).toBeTruthy();
+  return sourceId;
+}
+
+async function pauseCampaignByName(page: Page, name: string): Promise<void> {
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  expect(publishableKey, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY").toBeTruthy();
+
+  const result = await page.evaluate(
+    async ({ supabaseUrl, cookieName, publishableKey, advertiserOrgId, name }) => {
+      const cookie = document.cookie
+        .split("; ")
+        .find((part) => part.startsWith(`${cookieName}=`));
+      if (!cookie) {
+        throw new Error(`missing auth cookie ${cookieName}`);
+      }
+
+      const value = cookie.slice(cookieName.length + 1);
+      const session = JSON.parse(atob(value.replace(/^base64-/, "")));
+      const accessToken = session.access_token as string | undefined;
+      if (!accessToken) throw new Error("missing access token");
+
+      const url = new URL("/rest/v1/campaigns", supabaseUrl);
+      url.searchParams.set("name", `eq.${name}`);
+      url.searchParams.set("advertiser_org_id", `eq.${advertiserOrgId}`);
+      url.searchParams.set("select", "id,status");
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          apikey: publishableKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`lookup failed: ${response.status}`);
+      }
+
+      const rows = (await response.json()) as Array<{ id: string; status: string }>;
+      const campaign = rows[0];
+      if (!campaign) throw new Error(`campaign not found: ${name}`);
+
+      const patch = await fetch(`${supabaseUrl}/rest/v1/campaigns?id=eq.${campaign.id}`, {
+        method: "PATCH",
+        headers: {
+          apikey: publishableKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({ status: "paused" }),
+      });
+
+      if (!patch.ok) {
+        throw new Error(`pause failed: ${patch.status}`);
+      }
+      return patch.status;
+    },
+    {
+      supabaseUrl: SUPABASE_URL,
+      cookieName: authCookieName(SUPABASE_URL),
+      publishableKey,
+      advertiserOrgId: ADVERTISER_ORG,
+      name,
+    },
+  );
+
+  expect(result).toBe(200);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -366,4 +528,207 @@ test("publisher discovers live demand and reads the intake contract", async ({ p
   expect(["shingle", "tile", "metal"]).toContain(postExample.roof_type);
 
   assertClean(problems, "publisher intake guide");
+});
+
+test("golden path reaches billing, ping, post, conversion, reporting, and audit", async ({ page, context }) => {
+  const problems = watch(page);
+
+  await signIn(context, BUYER, { supabaseUrl: SUPABASE_URL, appUrl: APP_URL });
+
+  // ---- billing -------------------------------------------------------------
+  await page.goto(`/workspace/advertiser/billing?org=${ADVERTISER_ORG}`);
+  await expect(page.getByRole("heading", { name: "Billing & funding" })).toBeVisible();
+
+  const balanceBefore = moneyToCents(
+    await page.locator(".dashStats article").first().locator("strong").textContent(),
+  );
+  await page.getByRole("button", { name: "Post $500 test funding" }).click();
+  await expect(page).toHaveURL(/funded=1/);
+  await expect(page.getByText(/Funding received/)).toBeVisible();
+  const balanceAfter = moneyToCents(
+    await page.locator(".dashStats article").first().locator("strong").textContent(),
+  );
+  expect(balanceAfter).toBeGreaterThanOrEqual(balanceBefore + 50000);
+
+  // The earlier active campaign from the lightweight activation test can tie
+  // this new campaign on bid, so park it before we run the real delivery path.
+  await pauseCampaignByName(page, `${CAMPAIGN_NAME} delivered`);
+  assertClean(problems, "billing and campaign parking");
+
+  // ---- integration + campaign ---------------------------------------------
+  const integrationId = await createAdvertiserIntegration(page);
+  await createDeliveredCampaign(page, integrationId);
+  assertClean(problems, "campaign delivery setup");
+
+  // ---- publisher source ----------------------------------------------------
+  await signIn(context, SUPPLY, { supabaseUrl: SUPABASE_URL, appUrl: APP_URL });
+  const sourceId = await createPublisherSource(page);
+  const consumer = {
+    first_name: "Test",
+    last_name: "Lead",
+    email: "test.lead@example.com",
+    phone: "3105550100",
+  };
+  const attributes = {
+    zip: "90210",
+    state: "CA",
+    roof_type: "shingle",
+    monthly_bill: 150,
+  };
+  const consent = {
+    tcpa_consent: true,
+    tcpa_text: "I agree to be contacted by phone, SMS, and email regarding solar offers.",
+  };
+
+  // ---- ping ---------------------------------------------------------------
+  const ping = await postJson(page, "/api/v1/ping", {
+    source_id: sourceId,
+    external_submission_id: PING_EXTERNAL_ID,
+    vertical: VERTICAL_CODE,
+    consumer,
+    attributes,
+    consent,
+  });
+  expect(ping.status).toBe(200);
+  const pingBody = ping.json as {
+    ok?: boolean;
+    public_transaction_id?: string;
+    winning_campaign_id?: string | null;
+    winning_bid_cents?: number | null;
+    eligible_buyer_count?: number;
+  };
+  expect(pingBody.ok).toBe(true);
+  expect(pingBody.public_transaction_id).toMatch(/^QL-/);
+  expect(pingBody.winning_campaign_id).toBeTruthy();
+  expect(pingBody.winning_bid_cents).toBe(4500);
+  expect(pingBody.eligible_buyer_count ?? 0).toBeGreaterThan(0);
+
+  // ---- post ---------------------------------------------------------------
+  const post = await postJson(page, "/api/v1/post", {
+    public_transaction_id: pingBody.public_transaction_id,
+    source_id: sourceId,
+    external_submission_id: PING_EXTERNAL_ID,
+    consumer,
+    attributes,
+    consent,
+  });
+  expect(post.status).toBe(200);
+  const postBody = post.json as {
+    ok?: boolean;
+    transaction_id?: string;
+    delivered_to_campaign_id?: string;
+    status?: string;
+    charge_cents?: number;
+  };
+  expect(postBody.ok).toBe(true);
+  expect(postBody.transaction_id).toBeTruthy();
+  expect(postBody.delivered_to_campaign_id).toBeTruthy();
+  expect(postBody.status).toBe("accepted");
+  expect(postBody.charge_cents).toBe(4500);
+
+  const idempotencyMismatch = await postJson(page, "/api/v1/post", {
+    public_transaction_id: pingBody.public_transaction_id,
+    source_id: sourceId,
+    external_submission_id: POST_EXTERNAL_ID,
+    consumer,
+    attributes,
+    consent,
+  });
+  expect(idempotencyMismatch.status).toBe(400);
+  expect((idempotencyMismatch.json as { error?: { code?: string } }).error?.code).toBe(
+    "IDEMPOTENCY_MISMATCH",
+  );
+
+  problems.console.length = 0;
+  problems.network.length = 0;
+
+  // ---- conversion ---------------------------------------------------------
+  await signIn(context, BUYER, { supabaseUrl: SUPABASE_URL, appUrl: APP_URL });
+  const missingDisposition = await postJson(page, "/api/v1/conversions", {
+    transaction_id: postBody.transaction_id,
+  });
+  expect(missingDisposition.status).toBe(400);
+  expect((missingDisposition.json as { error?: { code?: string } }).error?.code).toBe(
+    "VALIDATION_ERROR",
+  );
+
+  problems.console.length = 0;
+  problems.network.length = 0;
+
+  const sale = await postJson(page, "/api/v1/conversions", {
+    transaction_id: postBody.transaction_id,
+    disposition: "sale",
+    revenue_cents: 18000,
+    external_event_id: CONVERSION_EXTERNAL_ID,
+  });
+  expect(sale.status).toBe(201);
+  const saleBody = sale.json as { ok?: boolean; duplicate?: boolean };
+  expect(saleBody.ok).toBe(true);
+  expect(saleBody.duplicate).toBe(false);
+
+  const saleAgain = await postJson(page, "/api/v1/conversions", {
+    transaction_id: postBody.transaction_id,
+    disposition: "sale",
+    revenue_cents: 18000,
+    external_event_id: CONVERSION_EXTERNAL_ID,
+  });
+  expect(saleAgain.status).toBe(200);
+  expect((saleAgain.json as { duplicate?: boolean }).duplicate).toBe(true);
+
+  // ---- opportunities + reporting -----------------------------------------
+  await page.goto(`/workspace/advertiser/opportunities?org=${ADVERTISER_ORG}`);
+  await expect(page.getByText(pingBody.public_transaction_id ?? "")).toBeVisible();
+  await expect(page.getByText("CHARGED")).toBeVisible();
+  await expect(page.getByText("$45.00")).toBeVisible();
+
+  await page.goto(`/workspace/advertiser/reports?org=${ADVERTISER_ORG}&range=30d`);
+  const reportStats = page.locator(".dashStats article");
+  await expect(reportStats.nth(0)).toContainText("$45.00");
+  await expect(reportStats.nth(1)).toContainText("1");
+  await expect(reportStats.nth(2)).toContainText("1");
+  await expect(reportStats.nth(3)).toContainText("$180.00");
+  await expect(page.getByText("ROAS 4.00x")).toBeVisible();
+
+  // ---- audit --------------------------------------------------------------
+  await signIn(context, ADMIN, { supabaseUrl: SUPABASE_URL, appUrl: APP_URL });
+  await page.goto("/workspace/admin/audit");
+  await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  await expect(page.locator(".tableRow.audit")).not.toHaveCount(0);
+  await expect(page.getByText("IMMUTABLE")).toBeVisible();
+  await expect(page.getByText("ON")).toBeVisible();
+
+  assertClean(problems, "golden path");
+});
+
+test("unsigned API callers are rejected before validation", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: APP_URL });
+  const page = await context.newPage();
+
+  const ping = await postJson(page, "/api/v1/ping", {
+    source_id: "missing",
+    external_submission_id: `anon-${RUN}`,
+    vertical: VERTICAL_CODE,
+  });
+  expect(ping.status).toBe(401);
+  expect((ping.json as { error?: { code?: string } }).error?.code).toBe("AUTH_REQUIRED");
+
+  const post = await postJson(page, "/api/v1/post", {
+    public_transaction_id: "QL-00000",
+    source_id: "missing",
+    external_submission_id: `anon-${RUN}`,
+    consumer: {},
+    attributes: {},
+    consent: {},
+  });
+  expect(post.status).toBe(401);
+  expect((post.json as { error?: { code?: string } }).error?.code).toBe("AUTH_REQUIRED");
+
+  const conversion = await postJson(page, "/api/v1/conversions", {
+    transaction_id: "txn-missing",
+    disposition: "sale",
+  });
+  expect(conversion.status).toBe(401);
+  expect((conversion.json as { error?: { code?: string } }).error?.code).toBe("AUTH_REQUIRED");
+
+  await context.close();
 });
