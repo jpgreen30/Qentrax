@@ -573,11 +573,17 @@ SQL
 
   psql -q -v ON_ERROR_STOP=1 -d "$DB" <<'SQL'
 set search_path = public;
+select id as buyer_user_id
+from public.users
+where auth_subject = 'd0000000-0000-0000-0000-00000000a102'
+limit 1
+\gset
+
 select public.post_balanced_journal(
   'funding',
   'upgrade-rehearsal-funding',
   'Baseline advertiser funding',
-  'd0000000-0000-0000-0000-00000000a102',
+  :'buyer_user_id',
   'd0000000-0000-0000-0000-00000000f201',
   (select id from public.financial_accounts where organization_id = 'd0000000-0000-0000-0000-00000000f101' and type = 'platform_cash' and currency = 'USD' limit 1),
   50000,
@@ -588,7 +594,7 @@ select public.post_balanced_journal(
 );
 SQL
 
-  psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
 select transaction_id
 from public.reserve_campaign_transaction(
   '$OPPORTUNITY_ID',
