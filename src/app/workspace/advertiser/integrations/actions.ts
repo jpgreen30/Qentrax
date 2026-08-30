@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireOrg } from "@/lib/workspace-data";
 import { checkOutboundUrl } from "@/lib/security/outbound-url";
 import { deliverToEndpoint } from "@/lib/delivery/http-delivery";
+import { replayDelivery } from "@/lib/delivery/replay";
 
 const BASE = "/workspace/advertiser/integrations";
 
@@ -180,5 +181,31 @@ export async function sendTestLead(formData: FormData) {
   back(org.id, {
     id,
     error: `Test lead failed: ${result.error_message ?? result.status} (${result.http_status ?? "no response"}).`,
+  });
+}
+
+/**
+ * Operator-initiated replay of a failed delivery. Billing is deliberately
+ * untouched: the advertiser was charged when the transaction was finalized, so
+ * a replay writes a new attempt and an audit record and nothing else.
+ */
+export async function replayFailedDelivery(formData: FormData) {
+  const orgId = String(formData.get("org_id") ?? "");
+  const deliveryId = String(formData.get("delivery_id") ?? "");
+  const { supabase, org } = await requireOrg(orgId, "advertiser");
+
+  const result = await replayDelivery(supabase, {
+    deliveryId,
+    organizationId: org.id,
+    actorOrgId: org.id,
+  });
+
+  revalidatePath(BASE);
+
+  if (!result.ok) back(org.id, { error: `Replay failed: ${result.message}` });
+  back(org.id, {
+    notice: result.accepted
+      ? `Replay accepted (attempt ${result.attemptNumber}). No additional charge.`
+      : `Replay attempted (attempt ${result.attemptNumber}) and was not accepted (${result.httpStatus ?? "no response"}). No additional charge.`,
   });
 }

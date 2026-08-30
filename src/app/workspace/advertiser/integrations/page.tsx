@@ -1,7 +1,12 @@
 import Link from "next/link";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import { initials, requireOrg } from "@/lib/workspace-data";
-import { saveIntegration, setIntegrationStatus, sendTestLead } from "./actions";
+import {
+  saveIntegration,
+  setIntegrationStatus,
+  sendTestLead,
+  replayFailedDelivery,
+} from "./actions";
 
 type Connector = {
   id: string;
@@ -70,6 +75,27 @@ export default async function AdvertiserIntegrations({
   const lastSuccess = attempts.find((a) => a.success);
   const lastFailure = attempts.find((a) => a.success === false);
   const successRate = recent.length ? Math.round((successes / recent.length) * 100) : null;
+
+  // Lead deliveries that never reached the buyer and are no longer queued for
+  // an automatic retry are the ones an operator can replay.
+  const { data: failedRows } = await supabase
+    .from("deliveries")
+    .select("id, status, attempt_number, response_code, last_error, created_at, transaction_id")
+    .eq("organization_id", org.id)
+    .in("status", ["failed", "rejected", "timed_out"])
+    .is("next_attempt_at", null)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const failedDeliveries = (failedRows ?? []) as {
+    id: string;
+    status: string;
+    attempt_number: number;
+    response_code: number | null;
+    last_error: string | null;
+    created_at: string;
+    transaction_id: string | null;
+  }[];
 
   const existingPing = mappingEntries(selected?.ping_field_mapping ?? null);
   const existingPost = mappingEntries(selected?.post_field_mapping ?? null);
@@ -304,10 +330,49 @@ export default async function AdvertiserIntegrations({
         </form>
       </article>
 
+      <article className="dashPanel">
+        <header>
+          <span>DEAD-LETTERED DELIVERIES</span>
+          <h2>Leads that never reached a destination</h2>
+        </header>
+        <p className="chartCaption">
+          Replay sends the lead again and records an auditable new attempt. The
+          advertiser was charged when the transaction was finalized, so a replay
+          never charges again.
+        </p>
+        <div className="tableHead report">
+          <span>WHEN</span>
+          <span>STATE</span>
+          <span>ATTEMPTS</span>
+          <span>ACTION</span>
+        </div>
+        {failedDeliveries.map((d) => (
+          <div className="tableRow report" key={d.id}>
+            <span>{d.created_at.slice(0, 19).replace("T", " ")}</span>
+            <span className="status">
+              {d.status.toUpperCase()} {d.response_code ?? ""}
+            </span>
+            <span>{d.attempt_number}</span>
+            <span>
+              <form action={replayFailedDelivery}>
+                <input type="hidden" name="org_id" value={org.id} />
+                <input type="hidden" name="delivery_id" value={d.id} />
+                <button type="submit" className="inlineButton">REPLAY</button>
+              </form>
+            </span>
+          </div>
+        ))}
+        {!failedDeliveries.length && (
+          <div className="tableRow">
+            <span className="status">No dead-lettered deliveries.</span>
+          </div>
+        )}
+      </article>
+
       {selected && (
         <article className="dashPanel">
           <header>
-            <span>DELIVERY HISTORY</span>
+            <span>TEST LEAD HISTORY</span>
             <h2>Recent attempts</h2>
           </header>
           <div className="tableHead report">

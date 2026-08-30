@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { processDueDeliveries, computeBackoffMs } from "./retry";
+import { replayDelivery } from "./replay";
 
 /**
  * Delivery lifecycle against the real database and a real endpoint.
@@ -315,5 +316,175 @@ describe.skipIf(!STACK_UP)("delivery retry lifecycle (live stack)", () => {
   it("backs off further with each attempt", async () => {
     expect(computeBackoffMs(2)).toBeGreaterThan(computeBackoffMs(1));
     expect(computeBackoffMs(3)).toBeGreaterThan(computeBackoffMs(2));
+  });
+
+  // -------------------------------------------------------------------------
+  // Manual replay. The money side must be untouched: the advertiser was
+  // charged when the transaction was finalized, and replaying a delivery the
+  // buyer never received must not charge again.
+  // -------------------------------------------------------------------------
+  async function chargedTransaction(tag: string) {
+    const opportunityId = await newOpportunity(tag);
+    const auctionRunId = await newAuctionRun(opportunityId);
+
+    const { data: reserved, error: reserveError } = await supabase.rpc(
+      "reserve_campaign_transaction",
+      {
+        p_opportunity_id: opportunityId,
+        p_publisher_org_id: PUB,
+        p_advertiser_org_id: ADV,
+        p_campaign_id: CAMP,
+        p_price_cents: 4500,
+        p_idempotency_key: `replay-${tag}-${Date.now()}`,
+      },
+    );
+    if (reserveError) throw new Error(reserveError.message);
+    const transactionId = reserved![0].transaction_id as string;
+
+    const { error: finalizeError } = await supabase.rpc("finalize_campaign_transaction", {
+      p_transaction_id: transactionId,
+      p_delivery_id: null,
+      p_accepted: true,
+      p_reason_code: "BUYER_ACCEPTED",
+    });
+    if (finalizeError) throw new Error(finalizeError.message);
+
+    const { data: delivery } = await supabase
+      .from("deliveries")
+      .insert({
+        opportunity_id: opportunityId,
+        auction_run_id: auctionRunId,
+        campaign_id: CAMP,
+        organization_id: ADV,
+        transaction_id: transactionId,
+        endpoint_url: hookUrl,
+        request_id: `req-replay-${tag}-${Date.now()}`,
+        status: "failed",
+        attempt_number: 3,
+        max_attempts: 3,
+        next_attempt_at: null,
+      })
+      .select("id")
+      .single();
+
+    return { transactionId, deliveryId: delivery!.id as string, opportunityId };
+  }
+
+  async function transactionState(id: string) {
+    const { data } = await supabase
+      .from("transactions")
+      .select("id, status, advertiser_price_cents, publisher_amount_cents, version")
+      .eq("id", id)
+      .single();
+    return data!;
+  }
+
+  async function chargeEventCount(transactionId: string): Promise<number> {
+    const { count } = await supabase
+      .from("transaction_events")
+      .select("id", { count: "exact", head: true })
+      .eq("transaction_id", transactionId)
+      .eq("event_type", "charged");
+    return count ?? 0;
+  }
+
+  it("replays a dead-lettered delivery without charging again", async () => {
+    behavior = { kind: "accept" };
+    const { transactionId, deliveryId } = await chargedTransaction("nodouble");
+
+    const before = await transactionState(transactionId);
+    const chargesBefore = await chargeEventCount(transactionId);
+    expect(before.status).toBe("charged");
+    expect(chargesBefore).toBe(1);
+
+    const result = await replayDelivery(supabase, {
+      deliveryId,
+      organizationId: ADV,
+      actorUserId: null,
+      actorOrgId: ADV,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.accepted).toBe(true);
+      expect(result.httpStatus).toBe(200);
+      expect(result.attemptNumber).toBe(4);
+    }
+
+    // The whole point: an auditable new attempt, and money untouched.
+    const after = await transactionState(transactionId);
+    expect(after.status).toBe("charged");
+    expect(after.advertiser_price_cents).toBe(before.advertiser_price_cents);
+    expect(after.publisher_amount_cents).toBe(before.publisher_amount_cents);
+    expect(after.version).toBe(before.version);
+    expect(await chargeEventCount(transactionId)).toBe(1);
+  });
+
+  it("records the replay as an auditable attempt", async () => {
+    behavior = { kind: "accept" };
+    const { deliveryId } = await chargedTransaction("audit");
+
+    const result = await replayDelivery(supabase, { deliveryId, organizationId: ADV });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const { data: audit } = await supabase
+      .from("audit_events")
+      .select("action, resource_type, resource_id, after_redacted")
+      .eq("resource_id", result.deliveryId)
+      .eq("action", "delivery.replay")
+      .maybeSingle();
+
+    expect(audit).not.toBeNull();
+    expect(audit!.resource_type).toBe("delivery");
+    expect((audit!.after_redacted as Record<string, unknown>).billing_effect).toBe("none");
+  });
+
+  it("refuses to replay a delivery the buyer already accepted", async () => {
+    behavior = { kind: "accept" };
+    const { deliveryId } = await chargedTransaction("accepted");
+
+    // First replay succeeds and lands an accepted attempt.
+    const first = await replayDelivery(supabase, { deliveryId, organizationId: ADV });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    // Replaying the accepted attempt must be refused: the buyer has the lead.
+    hits = 0;
+    const second = await replayDelivery(supabase, {
+      deliveryId: first.deliveryId,
+      organizationId: ADV,
+    });
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.reason).toBe("ALREADY_ACCEPTED");
+    // Nothing was sent to the buyer.
+    expect(hits).toBe(0);
+  });
+
+  it("does not replay another tenant's delivery", async () => {
+    const { deliveryId } = await chargedTransaction("tenant");
+    const result = await replayDelivery(supabase, {
+      deliveryId,
+      organizationId: "d1000000-0000-0000-0000-00000000ffff",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("DELIVERY_NOT_FOUND");
+  });
+
+  it("does not re-enter the automatic retry queue after a replay", async () => {
+    behavior = { kind: "fail", code: 500 };
+    const { deliveryId } = await chargedTransaction("noqueue");
+
+    const result = await replayDelivery(supabase, { deliveryId, organizationId: ADV });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const { data } = await supabase
+      .from("deliveries")
+      .select("next_attempt_at")
+      .eq("id", result.deliveryId)
+      .single();
+    // A replay is a one-shot operator action.
+    expect(data!.next_attempt_at).toBeNull();
   });
 });
