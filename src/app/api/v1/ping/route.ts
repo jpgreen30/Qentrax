@@ -10,6 +10,7 @@
 import { apiError, apiOk } from "@/lib/api";
 import { requestId } from "@/lib/request-id";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ping as pingService } from "@/lib/services/ping-post";
 
 export async function POST(request: Request) {
@@ -52,7 +53,24 @@ export async function POST(request: Request) {
     return apiError("VALIDATION_ERROR", "vertical is required.", id, 400);
   }
 
-  const result = await pingService(supabase, {
+  const { data: authorizedSource } = await supabase
+    .from("publisher_sources")
+    .select("id")
+    .eq("id", body.source_id)
+    .maybeSingle();
+
+  if (!authorizedSource) {
+    return apiError("SOURCE_NOT_FOUND", "Publisher source does not exist or is not accessible.", id, 404);
+  }
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return apiError("SERVICE_UNAVAILABLE", "Ping service is not configured.", id, 503);
+  }
+
+  const result = await pingService(admin, {
     source_id: body.source_id,
     external_submission_id: body.external_submission_id,
     vertical: body.vertical,
