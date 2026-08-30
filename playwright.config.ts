@@ -33,6 +33,10 @@ export default defineConfig({
   webServer: {
     command: "npm run start",
     url: "http://127.0.0.1:3000",
+    env: {
+      QENTRAX_ALLOW_LOOPBACK_DELIVERY: "1",
+      QENTRAX_ALLOW_SIMULATED_DELIVERY: "1",
+    },
     reuseExistingServer: true,
     timeout: 120_000,
   },
