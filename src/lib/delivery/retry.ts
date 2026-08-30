@@ -302,8 +302,8 @@ export async function processDueDeliveries(
           reason_code: result.reason_code,
         },
         request_snapshot_redacted: { payload },
-        // The schema records sent_at/accepted_at; there is no delivered_at
-        // column, and writing one made every insert fail.
+        // Record both the wire send time and the eventual acceptance time so
+        // reporting and replay flows can reconstruct the delivery lifecycle.
         sent_at: new Date().toISOString(),
         accepted_at: result.status === "accepted" ? new Date().toISOString() : null,
         next_attempt_at: nextAttemptAt,
