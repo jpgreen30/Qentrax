@@ -627,7 +627,7 @@ test("golden path reaches billing, ping, post, conversion, reporting, and audit"
     attributes,
     consent,
   });
-  expect(post.status).toBe(200);
+  expect(post.status, `POST response: ${JSON.stringify(post.json)}`).toBe(200);
   const postBody = post.json as {
     ok?: boolean;
     transaction_id?: string;
