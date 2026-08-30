@@ -34,6 +34,10 @@ create or replace function auth.uid() returns uuid language sql stable as
 create or replace function auth.role() returns text language sql stable as
   $fn$ select nullif(current_setting('request.jwt.claim.role', true), '') $fn$;
 
+-- Supabase grants these to the request roles; the stub must match or RLS
+-- policies calling auth.uid() fail with "permission denied for schema auth".
+grant usage on schema auth to anon, authenticated, service_role;
+
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
@@ -43,6 +47,8 @@ create table if not exists auth.users (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+grant execute on function auth.uid(), auth.role() to anon, authenticated, service_role;
+grant select on auth.users to anon, authenticated, service_role;
 SQL
 
 count=0
@@ -54,4 +60,15 @@ for f in "$ROOT"/supabase/migrations/*.sql; do
   fi
   count=$((count + 1))
 done
+# Supabase grants the request roles table-level access on public and relies on
+# RLS for row visibility. Without this, policy tests fail on grants rather than
+# exercising the policies.
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<'SQL'
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on all tables in schema public
+  to anon, authenticated, service_role;
+grant usage, select on all sequences in schema public
+  to anon, authenticated, service_role;
+SQL
+
 echo "applied ${count} migrations cleanly to '${DB}'"
