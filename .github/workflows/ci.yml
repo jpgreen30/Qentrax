@@ -17,8 +17,5 @@ jobs:
         run: |
           npx --yes \
             --package secretlint \
-            --package @secretlint/secretlint-rule-aws \
-            --package @secretlint/secretlint-rule-github-token \
-            --package @secretlint/secretlint-rule-slack \
-            --package @secretlint/secretlint-rule-stripe \
+            --package @secretlint/secretlint-rule-preset-recommend \
             secretlint "**/*"
