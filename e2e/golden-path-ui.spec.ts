@@ -120,6 +120,7 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
   await page.locator('select[name="auth_type"]').selectOption("none");
   await page.locator('input[name="timeout_ms"]').fill("8000");
   await page.getByRole("button", { name: "CREATE INTEGRATION" }).click();
+  await page.reload();
 
   await expect(page.locator(".formError")).toHaveCount(0);
 
