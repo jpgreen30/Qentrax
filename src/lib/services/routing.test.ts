@@ -1,211 +1,182 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { runAuction, RoutingStrategy } from "./routing";
-import { checkCampaignEligibility } from "./eligibility";
+import { describe, expect, it } from "vitest";
+import {
+  RoutingStrategy,
+  selectWinnerByStrategy,
+  type RoutingCandidate,
+} from "./routing";
+import { isScheduleActive } from "./eligibility";
 
-describe("Routing Foundation — Phase 1", () => {
-  describe("eligibility engine", () => {
-    it("rejects campaign that is not active", async () => {
-      // Placeholder: will be implemented with proper Supabase mocking
-      expect(true).toBe(true);
-    });
+function candidate(
+  campaign_id: string,
+  overrides: Partial<RoutingCandidate> = {},
+): RoutingCandidate {
+  return {
+    campaign_id,
+    eligible: true,
+    bid_cents: 1000,
+    bid_type: "fixed",
+    rank: 0,
+    weight: 1,
+    priority: 100,
+    remaining_capacity: null,
+    ...overrides,
+  };
+}
 
-    it("accepts campaign when vertical matches", async () => {
-      // Placeholder: will be enhanced when real DB mocking is in place
-      expect(true).toBe(true);
-    });
+describe("routing strategy selection", () => {
+  it("selects the highest valid bid with deterministic tie breaking", () => {
+    const candidates = [
+      candidate("b", { bid_cents: 2500, rank: 1 }),
+      candidate("a", { bid_cents: 2500, rank: 0 }),
+      candidate("c", { bid_cents: 2000, rank: 2 }),
+    ];
 
-    it("rejects campaign when vertical does not match", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign with no bid configured", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign outside schedule", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign that has ended", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign when daily budget reached", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign when daily cap reached", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects campaign when hourly cap reached", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("rejects geographically ineligible campaign", async () => {
-      expect(true).toBe(true);
-    });
-
-    it("returns stable reason codes for rejections", async () => {
-      // Verify reason codes match spec
-      const expectedCodes = [
-        "CAMPAIGN_NOT_FOUND",
-        "CAMPAIGN_NOT_ACTIVE",
-        "VERTICAL_MISMATCH",
-        "PRODUCT_MISMATCH",
-        "CAMPAIGN_NOT_FUNDED",
-        "OUTSIDE_CAMPAIGN_SCHEDULE",
-        "CAMPAIGN_NOT_STARTED",
-        "CAMPAIGN_ENDED",
-        "DAILY_BUDGET_REACHED",
-        "DAILY_CAP_REACHED",
-        "HOURLY_CAP_REACHED",
-        "GEO_NOT_ACCEPTED",
-      ];
-
-      for (const code of expectedCodes) {
-        expect(code).toMatch(/^[A-Z_]+$/);
-      }
-    });
+    expect(
+      selectWinnerByStrategy(candidates, RoutingStrategy.HIGHEST_BID),
+    ).toMatchObject({ campaign_id: "a", bid_cents: 2500 });
   });
 
-  describe("routing strategies", () => {
-    it("highest bid strategy selects campaign with highest bid", async () => {
-      // TODO: implement with mock data
-      expect(true).toBe(true);
-    });
+  it("never selects an ineligible destination", () => {
+    const winner = selectWinnerByStrategy(
+      [
+        candidate("blocked", { eligible: false, bid_cents: 999999 }),
+        candidate("eligible", { bid_cents: 100 }),
+      ],
+      RoutingStrategy.HIGHEST_BID,
+    );
 
-    it("round robin strategy distributes evenly", async () => {
-      // TODO: test convergence
-      expect(true).toBe(true);
-    });
-
-    it("weighted round robin respects weights", async () => {
-      // TODO: test 50/30/20 distribution
-      expect(true).toBe(true);
-    });
-
-    it("priority strategy honors tier order", async () => {
-      // TODO: test priority levels
-      expect(true).toBe(true);
-    });
-
-    it("waterfall strategy accepts first eligible in rank", async () => {
-      // TODO: test strict ordering
-      expect(true).toBe(true);
-    });
-
-    it("capacity strategy selects most available", async () => {
-      // TODO: test capacity remaining
-      expect(true).toBe(true);
-    });
+    expect(winner?.campaign_id).toBe("eligible");
   });
 
-  describe("auction engine", () => {
-    it("returns no eligible candidates when all ineligible", async () => {
-      // TODO: implement
-      expect(true).toBe(true);
-    });
+  it("round robin distributes evenly from a durable cursor", () => {
+    const candidates = [
+      candidate("a", { rank: 0 }),
+      candidate("b", { rank: 1 }),
+      candidate("c", { rank: 2 }),
+    ];
+    const winners = Array.from({ length: 9 }, (_, position) =>
+      selectWinnerByStrategy(
+        candidates,
+        RoutingStrategy.ROUND_ROBIN,
+        position,
+      )?.campaign_id,
+    );
 
-    it("selects winner from eligible candidates", async () => {
-      // TODO: implement
-      expect(true).toBe(true);
-    });
-
-    it("handles zero campaigns gracefully", async () => {
-      // TODO: implement
-      expect(true).toBe(true);
-    });
-
-    it("records decision latency", async () => {
-      // TODO: verify latency is captured
-      expect(true).toBe(true);
-    });
-
-    it("preserves candidate rank and reason codes", async () => {
-      // TODO: verify audit trail completeness
-      expect(true).toBe(true);
-    });
-
-    it("returns stable decision reasons", async () => {
-      const expectedReasons = [
-        "NO_CAMPAIGNS_TO_EVALUATE",
-        "NO_ELIGIBLE_BUYERS",
-        "NO_WINNER_SELECTED",
-        "WON_AUCTION",
-      ];
-
-      for (const reason of expectedReasons) {
-        expect(reason).toMatch(/^[A-Z_]+$/);
-      }
-    });
+    expect(winners).toEqual(["a", "b", "c", "a", "b", "c", "a", "b", "c"]);
   });
 
-  describe("cross-organization isolation", () => {
-    it("prevents org A campaigns from winning auctions for org B opportunities", async () => {
-      // TODO: verify RLS enforcement in auction candidate filtering
-      expect(true).toBe(true);
-    });
+  it("weighted round robin converges exactly for a 50/30/20 cycle", () => {
+    const candidates = [
+      candidate("a", { rank: 0, weight: 50 }),
+      candidate("b", { rank: 1, weight: 30 }),
+      candidate("c", { rank: 2, weight: 20 }),
+    ];
+    const counts = { a: 0, b: 0, c: 0 };
 
-    it("does not leak advertiser/campaign confidential data to publishers", async () => {
-      // TODO: verify reason codes sanitize bid information
-      expect(true).toBe(true);
-    });
+    for (let position = 0; position < 100; position += 1) {
+      const id = selectWinnerByStrategy(
+        candidates,
+        RoutingStrategy.WEIGHTED_ROUND_ROBIN,
+        position,
+      )?.campaign_id as keyof typeof counts;
+      counts[id] += 1;
+    }
+
+    expect(counts).toEqual({ a: 50, b: 30, c: 20 });
   });
 
-  describe("idempotency and determinism", () => {
-    it("same input produces same decision on replay", async () => {
-      // TODO: verify auction decisions are reproducible
-      expect(true).toBe(true);
-    });
+  it("priority selects the lowest tier and uses bid as a tie breaker", () => {
+    const winner = selectWinnerByStrategy(
+      [
+        candidate("low", { priority: 20, bid_cents: 5000 }),
+        candidate("first", { priority: 5, bid_cents: 1000 }),
+        candidate("best", { priority: 5, bid_cents: 1500 }),
+      ],
+      RoutingStrategy.PRIORITY,
+    );
 
-    it("auction records include full rule snapshot for replay", async () => {
-      // TODO: verify rule_snapshot_json captures decision logic
-      expect(true).toBe(true);
-    });
+    expect(winner?.campaign_id).toBe("best");
   });
 
-  describe("decision audit trail", () => {
-    it("records all candidate evaluations", async () => {
-      // TODO: verify auction_candidates table gets complete records
-      expect(true).toBe(true);
-    });
+  it("capacity selects the destination with most remaining capacity", () => {
+    const winner = selectWinnerByStrategy(
+      [
+        candidate("nearly-full", { remaining_capacity: 1, bid_cents: 5000 }),
+        candidate("available", { remaining_capacity: 20, bid_cents: 1000 }),
+      ],
+      RoutingStrategy.CAPACITY,
+    );
 
-    it("marks ineligible candidates with reason codes", async () => {
-      // TODO: verify reason_codes_json is populated
-      expect(true).toBe(true);
-    });
-
-    it("records winning bid and campaign", async () => {
-      // TODO: verify auction_run winning_campaign_id and winning_bid_cents
-      expect(true).toBe(true);
-    });
-
-    it("audit records are immutable after creation", async () => {
-      // TODO: verify triggers prevent updates
-      expect(true).toBe(true);
-    });
+    expect(winner?.campaign_id).toBe("available");
   });
 
-  describe("edge cases", () => {
-    it("handles nil bids without crash", async () => {
-      expect(true).toBe(true);
-    });
+  it("waterfall selects the first eligible rank", () => {
+    const winner = selectWinnerByStrategy(
+      [
+        candidate("second", { rank: 2 }),
+        candidate("first", { rank: 1 }),
+      ],
+      RoutingStrategy.WATERFALL,
+    );
 
-    it("handles campaigns with no cap configured", async () => {
-      expect(true).toBe(true);
-    });
+    expect(winner?.campaign_id).toBe("first");
+  });
 
-    it("handles opportunities with minimal attributes", async () => {
-      expect(true).toBe(true);
-    });
+  it("returns null when no candidate is eligible", () => {
+    expect(
+      selectWinnerByStrategy(
+        [candidate("blocked", { eligible: false })],
+        RoutingStrategy.HIGHEST_BID,
+      ),
+    ).toBeNull();
+  });
+});
 
-    it("rejects routing when opportunity already auctioned", async () => {
-      expect(true).toBe(true);
-    });
+describe("campaign schedule evaluation", () => {
+  it("accepts a configured weekday window in its timezone", () => {
+    const now = new Date("2026-08-31T17:30:00.000Z"); // Monday 10:30 PDT
+    expect(
+      isScheduleActive(
+        {
+          timezone: "America/Los_Angeles",
+          days: ["mon"],
+          windows: [{ start: "09:00", end: "17:00" }],
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
 
-    it("enforces concurrent-safe auction (no double-win)", async () => {
-      expect(true).toBe(true);
-    });
+  it("rejects a time outside the configured window", () => {
+    const now = new Date("2026-08-31T03:00:00.000Z"); // Sunday 20:00 PDT
+    expect(
+      isScheduleActive(
+        {
+          timezone: "America/Los_Angeles",
+          days: ["sun"],
+          windows: [{ start: "09:00", end: "17:00" }],
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("supports overnight windows", () => {
+    const now = new Date("2026-08-31T06:30:00.000Z"); // Sunday 23:30 PDT
+    expect(
+      isScheduleActive(
+        {
+          timezone: "America/Los_Angeles",
+          days: ["sun"],
+          windows: [{ start: "22:00", end: "02:00" }],
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("fails closed for an invalid timezone or disabled schedule", () => {
+    expect(isScheduleActive({ timezone: "Not/AZone" })).toBe(false);
+    expect(isScheduleActive({ enabled: false })).toBe(false);
   });
 });
