@@ -42,6 +42,7 @@ export function computeBackoffMs(attemptNumber: number): number {
 export type EnqueueDeliveryInput = {
   opportunityId: string;
   campaignId: string;
+  auctionRunId: string;
   transactionId?: string | null;
   endpointId?: string | null;
   endpointUrl?: string | null;
@@ -104,6 +105,7 @@ export async function enqueueAndAttemptDelivery(
     .insert({
       opportunity_id: input.opportunityId,
       campaign_id: input.campaignId,
+      auction_run_id: input.auctionRunId,
       endpoint_id: input.endpointId ?? null,
       transaction_id: input.transactionId ?? null,
       endpoint_url: result.endpoint_url ?? input.endpointUrl ?? null,
@@ -160,6 +162,7 @@ type DueRow = {
   id: string;
   opportunity_id: string;
   campaign_id: string;
+  auction_run_id: string;
   transaction_id: string | null;
   endpoint_id: string | null;
   endpoint_url: string | null;
@@ -198,7 +201,7 @@ export async function processDueDeliveries(
   const { data: due, error } = await supabase
     .from("deliveries")
     .select(
-      "id, opportunity_id, campaign_id, transaction_id, endpoint_id, endpoint_url, attempt_number, max_attempts, sla_due_at, request_snapshot_redacted",
+      "id, opportunity_id, campaign_id, auction_run_id, transaction_id, endpoint_id, endpoint_url, attempt_number, max_attempts, sla_due_at, request_snapshot_redacted",
     )
     .in("status", ["rejected", "timed_out", "failed", "acknowledged"])
     .not("next_attempt_at", "is", null)
@@ -271,6 +274,7 @@ export async function processDueDeliveries(
       await supabase.from("deliveries").insert({
         opportunity_id: row.opportunity_id,
         campaign_id: row.campaign_id,
+        auction_run_id: row.auction_run_id,
         endpoint_id: row.endpoint_id,
         transaction_id: row.transaction_id,
         endpoint_url: result.endpoint_url ?? endpointUrl,
