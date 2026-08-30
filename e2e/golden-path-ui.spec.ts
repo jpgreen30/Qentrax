@@ -121,9 +121,11 @@ async function createAdvertiserIntegration(page: Page): Promise<string> {
   await page.locator('input[name="timeout_ms"]').fill("8000");
   await page.getByRole("button", { name: "CREATE INTEGRATION" }).click();
 
-  await expect(page.getByText("Integration created. Send a test lead before activating.")).toBeVisible();
+  await expect(page).toHaveURL(/\/workspace\/advertiser\/integrations\?org=.*integration=/);
   const integrationId = new URL(page.url()).searchParams.get("integration");
   expect(integrationId).toBeTruthy();
+  await expect(page.locator(".formError")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: INTEGRATION_NAME })).toBeVisible();
   return integrationId!;
 }
 
