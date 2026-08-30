@@ -376,12 +376,13 @@ export async function post(
   await supabase.from("transaction_events").insert({
     transaction_id: transactionId,
     event_type: "reserved",
-    reason_code: "PING_POST_ACCEPTED",
+    reason_code: null,
     actor_type: "api",
     payload_json: {
       public_transaction_id,
       external_submission_id,
       consent_present: true,
+      reason_code: "PING_POST_ACCEPTED",
     },
     occurred_at: new Date().toISOString(),
   });
