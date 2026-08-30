@@ -152,7 +152,7 @@ export async function ping(
       vertical_id: vert.id,
       product_id: product ? (await resolveProductId(supabase, vert.id, product))?.id : null,
       external_submission_id,
-      status: "validation_pending",
+      status: "received",
       received_at: new Date().toISOString(),
       schema_version: "1.0",
     })
@@ -190,14 +190,6 @@ export async function ping(
 
   // Record auction decision
   await recordAuctionDecision(supabase, { opportunity_id: opp.id, decision });
-
-  // Update opportunity status
-  await supabase
-    .from("opportunities")
-    .update({
-      status: decision.winning_campaign_id ? "auction_pending" : "rejected",
-    })
-    .eq("id", opp.id);
 
   const expiresAt = new Date(Date.now() + BID_EXPIRATION_MS);
 
@@ -444,7 +436,7 @@ export async function post(
 
     await supabase
       .from("opportunities")
-      .update({ status: accepted ? "delivered" : "rejected" })
+      .update({ status: accepted ? "delivered" : "received" })
       .eq("id", opp.id);
 
     if (!accepted) {
