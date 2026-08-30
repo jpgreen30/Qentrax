@@ -330,15 +330,23 @@ export async function post(
     };
   }
 
-  if (reservation.error_code) {
+  const typedReservation = reservation as {
+    transaction_id: string | null;
+    transaction_status: string | null;
+    charge_cents: number | null;
+    created: boolean;
+    error_code: string | null;
+  };
+
+  if (typedReservation.error_code) {
     return {
       ok: false,
-      error_code: reservation.error_code,
+      error_code: typedReservation.error_code,
       error_message: "Campaign cannot accept this transaction",
     };
   }
 
-  if (!reservation.transaction_id) {
+  if (!typedReservation.transaction_id) {
     return {
       ok: false,
       error_code: "TRANSACTION_CREATE_FAILED",
@@ -346,17 +354,17 @@ export async function post(
     };
   }
 
-  if (!reservation.created) {
+  if (!typedReservation.created) {
     return {
       ok: true,
-      transaction_id: reservation.transaction_id,
+      transaction_id: typedReservation.transaction_id,
       delivered_to_campaign_id: campaign.id,
-      status: reservation.transaction_status === "charged" ? "accepted" : "delivered",
-      charge_cents: reservation.charge_cents,
+      status: typedReservation.transaction_status === "charged" ? "accepted" : "delivered",
+      charge_cents: typedReservation.charge_cents ?? auctionRun.winning_bid_cents,
     };
   }
 
-  const txn = { id: reservation.transaction_id };
+  const txn = { id: typedReservation.transaction_id };
 
   // Record transaction event
   await supabase.from("transaction_events").insert({
