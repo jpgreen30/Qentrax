@@ -14,6 +14,7 @@ import { generatePublicTransactionId } from "../transaction-id";
 import { runAuction, RoutingStrategy } from "./routing";
 import { recordAuctionDecision } from "./auction-log";
 import { enqueueAndAttemptDelivery } from "../delivery/retry";
+import { stripContactPii } from "../pii";
 
 export const BID_EXPIRATION_MS = 30000;
 
@@ -174,6 +175,10 @@ export async function ping(
       status: "received",
       received_at: new Date().toISOString(),
       schema_version: "1.0",
+      ping_attributes: stripContactPii({
+        ...(attributes ?? {}),
+        ...(typeof consumer?.state === "string" ? { state: consumer.state } : {}),
+      }),
     })
     .select("id")
     .single();
