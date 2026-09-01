@@ -1,12 +1,5 @@
 import type { GeoRules, LeadType, PricingMode } from "./types";
 
-/**
- * Parsing and validation for the admin Offer Builder, kept out of the server
- * action so the commercial rules are testable directly.
- *
- * Money is parsed from dollar strings into integer cents at the edge; nothing
- * downstream sees a float.
- */
 export const LEAD_TYPES: readonly LeadType[] = [
   "exclusive", "shared", "form", "call", "appointment", "transfer",
 ];
@@ -15,7 +8,6 @@ export const PRICING_MODES: readonly PricingMode[] = [
   "fixed", "floor", "bid", "auction", "ping_post",
 ];
 
-/** Mirrors the offer_slug_shape CHECK on public.offers. */
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,80}$/;
 
 const US_STATE = /^[A-Z]{2}$/;
@@ -42,16 +34,10 @@ function str(v: FormDataEntryValue | null): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-/**
- * Parses a dollar amount into integer cents. Returns undefined for blank input
- * and null when the value is present but unparseable, so the caller can tell
- * "absent" from "wrong".
- */
 export function parseDollarsToCents(raw: string): number | undefined | null {
   const trimmed = raw.trim().replace(/^\$/, "").replace(/,/g, "");
   if (!trimmed) return undefined;
   if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
-  // Round after scaling to avoid binary floating-point drift on values like 45.15.
   return Math.round(Number(trimmed) * 100);
 }
 
@@ -89,11 +75,8 @@ export function parseOfferVersionInput(form: {
   const price_cents = money("price", "Price");
   const floor_cents = money("floor", "Floor");
   const ceiling_cents = money("ceiling", "Ceiling");
-
   const pricing_mode = rawPricing as PricingMode;
 
-  // Mirrors the pricing_inputs_present CHECK so the builder explains the
-  // requirement rather than surfacing a constraint violation.
   if (pricing_mode === "fixed" && price_cents === null) {
     errors.push("A fixed-price offer needs a price.");
   }
@@ -115,8 +98,6 @@ export function parseOfferVersionInput(form: {
   for (const z of [...includeZips, ...excludeZips]) {
     if (!US_ZIP.test(z)) errors.push(`"${z}" is not a five-digit ZIP code.`);
   }
-
-  // A state in both lists makes the offer's reach ambiguous.
   for (const s of includeStates) {
     if (excludeStates.includes(s)) errors.push(`${s} is both included and excluded.`);
   }
@@ -152,6 +133,18 @@ export function parseOfferVersionInput(form: {
   if (consentRequired) requirements_json.consent_required = true;
   const verification = str(form.get("verification"));
   if (verification) requirements_json.verification = verification;
+  const fieldProfile = str(form.get("field_profile"));
+  if (fieldProfile) requirements_json.field_profile = fieldProfile;
+  const ageMin = str(form.get("age_min"));
+  const ageMax = str(form.get("age_max"));
+  if (ageMin || ageMax) {
+    requirements_json.age = {
+      min: ageMin ? Number(ageMin) : null,
+      max: ageMax ? Number(ageMax) : null,
+    };
+  }
+  const coverageMin = str(form.get("coverage_min"));
+  if (coverageMin) requirements_json.coverage_min = Number(coverageMin.replace(/[$,]/g, ""));
   const minQuality = str(form.get("min_quality_score"));
   if (minQuality) {
     const n = Number(minQuality);
