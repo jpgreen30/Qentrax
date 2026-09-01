@@ -85,19 +85,31 @@ export async function postTestFunding(formData: FormData) {
 
   const supabase = createAdminClient();
   const idempotencyKey = `test-fund-${organizationId}-${Date.now()}`;
+  const amount = Number.isFinite(amountCents) ? amountCents : 50000;
   const { error } = await supabase.rpc("record_stripe_funding", {
     p_organization_id: organizationId,
-    p_amount_cents: Number.isFinite(amountCents) ? amountCents : 50000,
+    p_amount_cents: amount,
     p_idempotency_key: idempotencyKey,
     p_description: "Test-mode funding (ledger simulation)",
   });
+
+  if (!error) {
+    const { emitNotification, formatCents } = await import("@/lib/notifications");
+    await emitNotification(supabase, {
+      organizationId,
+      type: "billing.funded",
+      title: "Balance funded",
+      body: `${formatCents(amount)} was credited (test ledger).`,
+      href: `/workspace/advertiser/billing?org=${organizationId}`,
+      dedupeKey: `billing-funded:${idempotencyKey}`,
+    });
+  }
 
   redirect(
     `/workspace/advertiser/billing?org=${organizationId}${error ? "&fund_error=1" : "&funded=1"}`,
   );
 }
 
-/** Start Stripe Checkout for real advertiser funding. */
 export async function startStripeFunding(formData: FormData) {
   const auth = await requireAuthContext();
   if (!auth) redirect("/sign-in");
@@ -129,7 +141,6 @@ export async function startStripeFunding(formData: FormData) {
     redirect(`/workspace/advertiser/billing?org=${organizationId}&error=${encodeURIComponent("Invalid org")}`);
   }
 
-  // IMPORTANT: redirect() throws NEXT_REDIRECT — must not be inside try/catch
   let checkoutUrl: string;
   try {
     const customerId = await ensureStripeCustomer(
@@ -169,6 +180,18 @@ export async function activateCampaign(formData: FormData) {
   const { data, error } = await supabase.rpc("activate_campaign_if_ready", {
     p_campaign_id: campaignId,
   });
+
+  if (!error) {
+    const { emitNotification } = await import("@/lib/notifications");
+    await emitNotification(supabase, {
+      organizationId,
+      type: "campaign.activated",
+      title: "Campaign activated",
+      body: "The campaign is live against its offer.",
+      href: `/workspace/advertiser/campaigns?org=${organizationId}`,
+      dedupeKey: `campaign-activated:${campaignId}`,
+    });
+  }
 
   const reason =
     error
@@ -220,6 +243,20 @@ export async function recordDisposition(formData: FormData) {
     p_product: product || null,
     p_payload: { source: "workspace_ui" },
   });
+
+  if (!error) {
+    const { emitNotification } = await import("@/lib/notifications");
+    const negative = ["rejected", "returned", "refunded"].includes(eventType);
+    await emitNotification(supabase, {
+      organizationId,
+      type: `lead.${eventType}`,
+      severity: negative ? "warning" : "info",
+      title: `Lead ${eventType}`,
+      body: `Transaction ${transactionId.slice(0, 8)}… marked ${eventType}.`,
+      href: `/workspace/advertiser/opportunities?org=${organizationId}`,
+      dedupeKey: `lead-outcome:${transactionId}:${eventType}`,
+    });
+  }
 
   redirect(
     `/workspace/advertiser/opportunities?org=${organizationId}${error ? "&disp=error" : "&disp=ok"}`,
