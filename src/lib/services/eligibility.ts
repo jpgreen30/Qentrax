@@ -59,6 +59,7 @@ export async function checkCampaignEligibility(
       bid_type,
       starts_at,
       ends_at,
+      advertiser_org_id,
       daily_budget_cents,
       monthly_budget_cents,
       daily_cap,
@@ -181,12 +182,38 @@ export async function checkCampaignEligibility(
 /**
  * Check campaign budget and daily/hourly caps.
  */
+async function notifyCap(
+  supabase: SupabaseClient,
+  campaign: Record<string, unknown>,
+  campaignId: string,
+  type: string,
+  title: string,
+  body: string,
+  windowKey: string,
+) {
+  const orgId = (campaign.advertiser_org_id as string | undefined) ?? null;
+  if (!orgId) return;
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: orgId,
+    type,
+    severity: "warning",
+    title,
+    body,
+    href: `/workspace/advertiser/campaigns/${campaignId}/review`,
+    dedupeKey: `${type}:${campaignId}:${windowKey}`,
+    payload: { campaign_id: campaignId },
+  });
+}
+
 async function checkCampaignBudgetAndCaps(
   supabase: SupabaseClient,
   campaignId: string,
   campaign: Record<string, unknown>,
 ) {
   const today = new Date().toISOString().split("T")[0];
+  const hourKey = new Date().toISOString().slice(0, 13);
+  const monthKey = today.slice(0, 7);
 
   // Check daily usage
   const { data: dailyUsage } = await supabase
@@ -204,11 +231,51 @@ async function checkCampaignBudgetAndCaps(
 
   if (campaign.daily_budget_cents) {
     if ((dailySpentCents as number) >= (campaign.daily_budget_cents as number)) {
+      await notifyCap(
+        supabase,
+        campaign,
+        campaignId,
+        "campaign.budget.daily",
+        "Daily budget reached",
+        "This campaign has exhausted its daily budget and will stop buying until tomorrow.",
+        today,
+      );
       return {
         budgetCheck: {
           eligible: false,
           reason_code: "DAILY_BUDGET_REACHED",
           reason_detail: "Daily budget exhausted",
+        },
+      };
+    }
+  }
+
+  if (campaign.monthly_budget_cents) {
+    const monthStart = `${monthKey}-01`;
+    const { data: monthRows } = await supabase
+      .from("campaign_daily_usage")
+      .select("charged_cents, reserved_cents")
+      .eq("campaign_id", campaignId)
+      .gte("usage_date", monthStart)
+      .lte("usage_date", today);
+    const monthSpent = (monthRows ?? []).reduce((sum, row) => {
+      return sum + (Number(row.charged_cents) || 0) + (Number(row.reserved_cents) || 0);
+    }, 0);
+    if (monthSpent >= Number(campaign.monthly_budget_cents)) {
+      await notifyCap(
+        supabase,
+        campaign,
+        campaignId,
+        "campaign.budget.monthly",
+        "Monthly budget reached",
+        "This campaign has exhausted its monthly budget.",
+        monthKey,
+      );
+      return {
+        budgetCheck: {
+          eligible: false,
+          reason_code: "MONTHLY_BUDGET_REACHED",
+          reason_detail: "Monthly budget exhausted",
         },
       };
     }
@@ -225,6 +292,15 @@ async function checkCampaignBudgetAndCaps(
     const deliveredToday = Math.max(dailyDeliveryCount || 0, dailyAcceptedCount);
     remainingCapacity = Math.max(0, Number(campaign.daily_cap) - deliveredToday);
     if (remainingCapacity === 0) {
+      await notifyCap(
+        supabase,
+        campaign,
+        campaignId,
+        "campaign.cap.daily",
+        "Daily cap reached",
+        "This campaign hit its daily delivery cap.",
+        today,
+      );
       return {
         budgetCheck: {
           eligible: false,
@@ -253,6 +329,15 @@ async function checkCampaignBudgetAndCaps(
         ? hourlyRemaining
         : Math.min(remainingCapacity, hourlyRemaining);
     if (hourlyRemaining === 0) {
+      await notifyCap(
+        supabase,
+        campaign,
+        campaignId,
+        "campaign.cap.hourly",
+        "Hourly cap reached",
+        "This campaign hit its hourly delivery cap.",
+        hourKey,
+      );
       return {
         budgetCheck: {
           eligible: false,
