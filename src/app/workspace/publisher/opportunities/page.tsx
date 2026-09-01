@@ -12,7 +12,7 @@ export default async function PublisherOpportunities({
 
   const { data: txns } = await supabase
     .from("transactions")
-    .select("id, status, publisher_amount_cents, advertiser_price_cents, created_at, opportunity_id")
+    .select("id, status, publisher_amount_cents, advertiser_price_cents, created_at, opportunity_id, public_transaction_id")
     .eq("publisher_org_id", org.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -99,7 +99,7 @@ export default async function PublisherOpportunities({
           const ping = (opp?.ping_attributes ?? {}) as Record<string, unknown>;
           return (
             <div className="tableRow opp" key={t.id}>
-              <span>{opp?.public_transaction_id ?? t.id.slice(0, 8)}</span>
+              <span>{t.public_transaction_id ?? opp?.public_transaction_id ?? t.id.slice(0, 8)}</span>
               <span>{opp?.vertical_id ? vMap.get(opp.vertical_id) ?? "—" : "—"}</span>
               <span>{String(ping.state ?? "—")}</span>
               <span className="status">{(t.status ?? "").toUpperCase()}</span>
