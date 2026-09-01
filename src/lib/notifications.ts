@@ -31,3 +31,9 @@ export async function emitNotification(
     console.error("emit_notification", error.message);
   }
 }
+
+/** Format cents for notification copy. */
+export function formatCents(cents: number | null | undefined): string {
+  if (cents == null || !Number.isFinite(cents)) return "$0.00";
+  return `$${(cents / 100).toFixed(2)}`;
+}
