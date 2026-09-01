@@ -6,6 +6,7 @@ import "./portal-adv.css";
 import "./blog.css";
 import "./site-footer.css";
 import "./workspace-actions.css";
+import "./offer-builder.css";
 
 export const metadata: Metadata = {
   title: "Qentrax | Verified demand. Measurable growth.",
