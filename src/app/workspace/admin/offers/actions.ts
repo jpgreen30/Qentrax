@@ -63,11 +63,6 @@ export async function createOffer(formData: FormData) {
   back(data?.id ?? null);
 }
 
-/**
- * Creates the first version of an offer. Later revisions go through
- * create_offer_draft(), which clones the live version rather than starting
- * blank, so a reprice cannot silently drop other terms.
- */
 export async function createFirstVersion(formData: FormData) {
   const { supabase } = await requireAdmin();
   const offerId = String(formData.get("offer_id") ?? "");
@@ -136,8 +131,6 @@ export async function publishOffer(formData: FormData) {
     p_version_id: versionId,
   });
 
-  // publish_offer_version refuses a schema version that is not itself
-  // published; say so plainly.
   if (error) {
     back(offerId, [
       error.message.includes("not published")
@@ -146,11 +139,21 @@ export async function publishOffer(formData: FormData) {
     ]);
   }
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "offer.published",
+    severity: "info",
+    title: "Offer version published",
+    body: "A new offer version is live on the marketplace.",
+    href: `/workspace/admin/offers?offer=${offerId}`,
+    dedupeKey: `offer-published:${versionId}`,
+    payload: { offerId, versionId },
+  });
+
   revalidatePath(BASE);
   back(offerId);
 }
 
-/** Pause and resume affect marketplace visibility without touching versions. */
 export async function setOfferStatus(formData: FormData) {
   const { supabase } = await requireAdmin();
   const offerId = String(formData.get("offer_id") ?? "");
@@ -170,6 +173,18 @@ export async function setOfferStatus(formData: FormData) {
     .eq("id", offerId);
 
   if (error) back(offerId, [error.message]);
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "offer.status",
+    severity: status === "paused" || status === "archived" ? "warning" : "info",
+    title: `Offer ${status}`,
+    body: `Marketplace visibility is now ${status}.`,
+    href: `/workspace/admin/offers?offer=${offerId}`,
+    dedupeKey: `offer-status:${offerId}:${status}`,
+    payload: { offerId, status },
+  });
+
   revalidatePath(BASE);
   back(offerId);
 }
