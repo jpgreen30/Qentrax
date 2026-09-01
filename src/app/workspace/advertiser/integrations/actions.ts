@@ -45,9 +45,6 @@ export async function saveIntegration(formData: FormData) {
 
   if (!name) back(org.id, { id: id ?? undefined, error: "Name is required." });
 
-  // The same guard the delivery worker applies, so a destination that could
-  // never be delivered to is rejected at configuration time rather than
-  // failing silently on every lead.
   const urlCheck = checkOutboundUrl(endpointUrl);
   if (!urlCheck.ok) {
     back(org.id, { id: id ?? undefined, error: `${urlCheck.reason}: ${urlCheck.detail}` });
@@ -122,11 +119,6 @@ export async function setIntegrationStatus(formData: FormData) {
   back(org.id, { id, notice: `Integration ${status}.` });
 }
 
-/**
- * Sends a clearly-marked test lead to the destination and records the attempt
- * alongside real deliveries, so the same history view shows how it behaved.
- * The payload carries no consumer data.
- */
 export async function sendTestLead(formData: FormData) {
   const orgId = String(formData.get("org_id") ?? "");
   const id = String(formData.get("integration_id") ?? "");
@@ -152,7 +144,6 @@ export async function sendTestLead(formData: FormData) {
       campaign_id: "test-campaign",
       vertical: "test",
       state: "CA",
-      // Synthetic only. A test must never carry real consumer data.
       consumer: { first_name: "Test", last_name: "Lead", email: "test@example.com" },
       attributes: { qentrax_test: true },
       delivered_at: new Date().toISOString(),
@@ -172,6 +163,20 @@ export async function sendTestLead(formData: FormData) {
 
   revalidatePath(BASE);
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: org.id,
+    type: result.status === "accepted" ? "integration.test.ok" : "integration.test.failed",
+    severity: result.status === "accepted" ? "info" : "warning",
+    title: result.status === "accepted" ? "Test lead accepted" : "Test lead failed",
+    body:
+      result.status === "accepted"
+        ? `${connector.name} accepted a synthetic lead (${result.http_status}) in ${result.latency_ms}ms.`
+        : `${connector.name}: ${result.error_message ?? result.status}`,
+    href: `/workspace/advertiser/integrations?org=${org.id}&integration=${id}`,
+    dedupeKey: `integration-test:${id}:${result.status}`,
+  });
+
   if (result.status === "accepted") {
     back(org.id, {
       id,
@@ -184,11 +189,6 @@ export async function sendTestLead(formData: FormData) {
   });
 }
 
-/**
- * Operator-initiated replay of a failed delivery. Billing is deliberately
- * untouched: the advertiser was charged when the transaction was finalized, so
- * a replay writes a new attempt and an audit record and nothing else.
- */
 export async function replayFailedDelivery(formData: FormData) {
   const orgId = String(formData.get("org_id") ?? "");
   const deliveryId = String(formData.get("delivery_id") ?? "");
