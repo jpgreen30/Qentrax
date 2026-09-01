@@ -29,6 +29,19 @@ const replacements = [
   await expect(page.getByRole("strong").filter({ hasText: /^ON$/ })).toBeVisible();
 `,
   },
+  {
+    old: `  const context = await browser.newContext({ baseURL: APP_URL });
+  const page = await context.newPage();
+
+  const ping = await postJson(page, "/api/v1/ping", {
+`,
+    next: `  const context = await browser.newContext({ baseURL: APP_URL });
+  const page = await context.newPage();
+  await page.goto("/");
+
+  const ping = await postJson(page, "/api/v1/ping", {
+`,
+  },
 ];
 
 for (const { old, next } of replacements) {
