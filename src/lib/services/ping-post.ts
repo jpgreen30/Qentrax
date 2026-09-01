@@ -453,11 +453,47 @@ export async function post(
       .eq("id", opp.id);
 
     if (!accepted) {
+      const { emitNotification } = await import("@/lib/notifications");
+      await emitNotification(supabase, {
+        organizationId: campaign.advertiser_org_id,
+        type: "lead.rejected",
+        severity: "warning",
+        title: "Lead rejected",
+        body: `Buyer delivery was not accepted for ${public_transaction_id}.`,
+        href: `/workspace/advertiser/opportunities?org=${campaign.advertiser_org_id}`,
+        dedupeKey: `lead-post:${transactionId}:rejected`,
+        payload: { transaction_id: transactionId, public_transaction_id },
+      });
       return {
         ok: false,
         error_code: delivery.reason_code ?? "DELIVERY_FAILED",
         error_message: "Buyer delivery was not accepted; budget reservation was released",
       };
+    }
+
+    {
+      const { emitNotification, formatCents } = await import("@/lib/notifications");
+      const charge = typedReservation.charge_cents ?? auctionRun.winning_bid_cents;
+      await emitNotification(supabase, {
+        organizationId: campaign.advertiser_org_id,
+        type: "lead.accepted",
+        title: "Lead accepted",
+        body: `${public_transaction_id} delivered (${formatCents(charge)}).`,
+        href: `/workspace/advertiser/opportunities?org=${campaign.advertiser_org_id}`,
+        dedupeKey: `lead-post:${transactionId}`,
+        payload: { transaction_id: transactionId, public_transaction_id },
+      });
+      if (opp.publisher_org_id) {
+        await emitNotification(supabase, {
+          organizationId: opp.publisher_org_id,
+          type: "lead.sold",
+          title: "Lead sold",
+          body: `${public_transaction_id} sold for ${formatCents(charge)}.`,
+          href: `/workspace/publisher/opportunities`,
+          dedupeKey: `lead-sold:${transactionId}`,
+          payload: { transaction_id: transactionId, public_transaction_id },
+        });
+      }
     }
 
     return {

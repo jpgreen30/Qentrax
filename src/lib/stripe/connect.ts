@@ -86,7 +86,6 @@ export async function syncConnectAccount(
 ): Promise<void> {
   const orgId = account.metadata?.qentrax_org_id;
   if (!orgId) {
-    // Fallback: look up by account id
     const mapped = mapAccountStatus(account);
     await supabase
       .from("organizations")
@@ -113,6 +112,19 @@ export async function syncConnectAccount(
       updated_at: new Date().toISOString(),
     })
     .eq("id", orgId);
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: orgId,
+    type: mapped.payouts_enabled ? "payouts.enabled" : "compliance.connect.updated",
+    severity: mapped.status === "disabled" || mapped.status === "restricted" ? "warning" : "info",
+    title: mapped.payouts_enabled ? "Payouts enabled" : `Connect status: ${mapped.status}`,
+    body: mapped.payouts_enabled
+      ? "Stripe Connect can now receive publisher transfers."
+      : "Payouts stay blocked until Connect requirements are complete.",
+    href: `/workspace/publisher/earnings?org=${orgId}`,
+    dedupeKey: `connect:${orgId}:${mapped.status}:${mapped.payouts_enabled ? "on" : "off"}`,
+  });
 }
 
 /** Create a Transfer to a connected publisher account for a payout item total. */

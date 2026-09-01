@@ -159,5 +159,18 @@ export async function recordConversion(
     return { ok: false, code: "WRITE_FAILED", message: "Conversion was not recorded." };
   }
 
+  const { emitNotification } = await import("@/lib/notifications");
+  const negative = ["rejected", "returned", "refunded"].includes(disposition);
+  await emitNotification(supabase, {
+    organizationId: input.advertiserOrgId,
+    type: `lead.${disposition}`,
+    severity: negative ? "warning" : "info",
+    title: `Lead ${disposition}`,
+    body: `Transaction ${input.transactionId.slice(0, 8)}… marked ${disposition}.`,
+    href: `/workspace/advertiser/opportunities?org=${input.advertiserOrgId}`,
+    dedupeKey: `lead-disposition:${input.transactionId}:${disposition}:${externalEventId}`,
+    payload: { transaction_id: input.transactionId, disposition },
+  });
+
   return { ok: true, id: data.id as string, duplicate: false, disposition };
 }

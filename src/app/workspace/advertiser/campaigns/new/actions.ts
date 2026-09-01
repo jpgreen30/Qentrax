@@ -120,6 +120,16 @@ export async function createCampaign(formData: FormData) {
     }
   }
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: org.id,
+    type: "campaign.created",
+    title: "Campaign drafted",
+    body: `${v.name} is ready for review. It will not buy until you activate it.`,
+    href: `/workspace/advertiser/campaigns/${campaign.id}/review?org=${org.id}`,
+    dedupeKey: `campaign-created:${campaign.id}`,
+  });
+
   revalidatePath("/workspace/advertiser/campaigns");
   redirect(`/workspace/advertiser/campaigns/${campaign.id}/review?org=${org.id}`);
 }
@@ -141,6 +151,16 @@ export async function activateCampaign(formData: FormData) {
     redirect(`/workspace/advertiser/campaigns/${campaignId}/review?${q}`);
   }
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: org.id,
+    type: "campaign.activated",
+    title: "Campaign activated",
+    body: "This campaign is now eligible to buy against its offer.",
+    href: `/workspace/advertiser/campaigns/${campaignId}/review?org=${org.id}`,
+    dedupeKey: `campaign-activated:${campaignId}`,
+  });
+
   revalidatePath("/workspace/advertiser/campaigns");
   redirect(`/workspace/advertiser/campaigns?org=${org.id}`);
 }
@@ -160,6 +180,17 @@ export async function setCampaignStatus(formData: FormData) {
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", campaignId)
     .eq("advertiser_org_id", org.id);
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId: org.id,
+    type: `campaign.${status}`,
+    severity: status === "paused" || status === "archived" ? "warning" : "info",
+    title: `Campaign ${status}`,
+    body: `Buying status is now ${status}.`,
+    href: `/workspace/advertiser/campaigns?org=${org.id}`,
+    dedupeKey: `campaign-status:${campaignId}:${status}`,
+  });
 
   revalidatePath("/workspace/advertiser/campaigns");
   redirect(`/workspace/advertiser/campaigns?org=${org.id}`);

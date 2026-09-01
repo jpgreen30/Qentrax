@@ -52,7 +52,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Idempotency: skip if already processed
   const { data: existing } = await supabase
     .from("stripe_events")
     .select("id, process_status")
@@ -62,7 +61,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  // Record receipt early
   await supabase.from("stripe_events").upsert({
     id: event.id,
     type: event.type,
@@ -107,12 +105,20 @@ export async function POST(request: Request) {
           await markEvent(supabase, event, "error", error.message);
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
+        const { emitNotification, formatCents } = await import("@/lib/notifications");
+        await emitNotification(supabase, {
+          organizationId: orgId,
+          type: "billing.funded",
+          title: "Balance funded",
+          body: `${formatCents(amount)} credited from Stripe Checkout.`,
+          href: `/workspace/advertiser/billing?org=${orgId}`,
+          dedupeKey: `billing-funded:cs:${session.id}`,
+        });
         await markEvent(supabase, event, "processed");
         break;
       }
 
       case "payment_intent.succeeded": {
-        // Backup path if Checkout webhook is delayed; only act when metadata present
         const pi = event.data.object as Stripe.PaymentIntent;
         const orgId = pi.metadata?.qentrax_org_id;
         if (!orgId || pi.metadata?.purpose !== "advertiser_funding") {
@@ -132,6 +138,15 @@ export async function POST(request: Request) {
           await markEvent(supabase, event, "error", error.message);
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
+        const { emitNotification, formatCents } = await import("@/lib/notifications");
+        await emitNotification(supabase, {
+          organizationId: orgId,
+          type: "billing.funded",
+          title: "Balance funded",
+          body: `${formatCents(amount)} credited from Stripe.`,
+          href: `/workspace/advertiser/billing?org=${orgId}`,
+          dedupeKey: `billing-funded:pi:${pi.id}`,
+        });
         await markEvent(supabase, event, "processed");
         break;
       }
