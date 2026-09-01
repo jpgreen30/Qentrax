@@ -24,7 +24,7 @@ const replacements = [
   await expect(page.getByText("ON")).toBeVisible();
 `,
     next: `  await expect(page.locator(".tableRow.audit")).not.toHaveCount(0);
-  await expect(page.getByText("opportunity.received")).toBeVisible();
+  await expect(page.locator(".tableRow.audit .status").filter({ hasText: "opportunity.received" })).toBeVisible();
   await expect(page.getByText("IMMUTABLE", { exact: true })).toBeVisible();
   await expect(page.getByRole("strong").filter({ hasText: /^ON$/ })).toBeVisible();
 `,
