@@ -349,6 +349,24 @@ async function recordDeliveryAttempt(
   if (error) {
     console.error("Failed to record delivery attempt:", error);
   }
+
+  if (status === "failed") {
+    const { emitNotification } = await import("@/lib/notifications");
+    await emitNotification(supabase, {
+      organizationId: input.organization_id,
+      type: "webhook.delivery.failed",
+      severity: "warning",
+      title: "Webhook delivery failed",
+      body: result.error_message ?? "Buyer endpoint returned a terminal failure.",
+      href: `/workspace/advertiser/integrations`,
+      dedupeKey: `webhook-failed:${input.transaction_id}:${result.attempt_number}`,
+      payload: {
+        transaction_id: input.transaction_id,
+        attempt_number: result.attempt_number,
+        status_code: result.status_code ?? null,
+      },
+    });
+  }
 }
 
 async function updateTransactionStatus(
