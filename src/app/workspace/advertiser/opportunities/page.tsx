@@ -14,7 +14,7 @@ export default async function AdvertiserOpportunities({
   const { data: txns } = await supabase
     .from("transactions")
     .select(
-      "id, status, advertiser_price_cents, publisher_amount_cents, created_at, opportunity_id, campaign_id",
+      "id, status, advertiser_price_cents, publisher_amount_cents, created_at, opportunity_id, campaign_id, public_transaction_id",
     )
     .eq("advertiser_org_id", org.id)
     .order("created_at", { ascending: false })
@@ -125,7 +125,7 @@ export default async function AdvertiserOpportunities({
           const ping = (opp?.ping_attributes ?? {}) as Record<string, unknown>;
           return (
             <div className="tableRow opp" key={t.id}>
-              <span>{opp?.public_transaction_id ?? t.id.slice(0, 8)}</span>
+              <span>{t.public_transaction_id ?? opp?.public_transaction_id ?? t.id.slice(0, 8)}</span>
               <span>{opp?.vertical_id ? (vMap.get(opp.vertical_id) ?? "—") : "—"}</span>
               <span>{String(ping.state ?? ping.State ?? "—")}</span>
               <span className="status">{(t.status ?? "").toUpperCase()}</span>
@@ -162,7 +162,7 @@ export default async function AdvertiserOpportunities({
               <select name="transaction_id" required defaultValue={billableTxns[0]?.id}>
                 {billableTxns.map((t) => {
                   const opp = t.opportunity_id ? oppMap.get(t.opportunity_id) : null;
-                  const label = opp?.public_transaction_id ?? t.id.slice(0, 8);
+                  const label = t.public_transaction_id ?? opp?.public_transaction_id ?? t.id.slice(0, 8);
                   return (
                     <option key={t.id} value={t.id}>
                       {label} · {money(t.advertiser_price_cents)} ·{" "}
