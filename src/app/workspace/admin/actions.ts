@@ -57,6 +57,16 @@ export async function approveOrganization(formData: FormData) {
     request_id: rid,
   });
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId,
+    type: "organization.approved",
+    title: "Organization approved",
+    body: "KYB cleared. The workspace can now buy or sell on the network.",
+    href: "/workspace",
+    dedupeKey: `org-approved:${organizationId}`,
+  });
+
   redirect("/workspace/admin");
 }
 
@@ -81,6 +91,17 @@ export async function rejectOrganization(formData: FormData) {
     resource_id: organizationId,
     reason: "admin_queue",
     request_id: rid,
+  });
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId,
+    type: "organization.rejected",
+    severity: "warning",
+    title: "Organization rejected",
+    body: "Onboarding was not approved. Update KYB documents and resubmit.",
+    href: "/workspace",
+    dedupeKey: `org-rejected:${organizationId}`,
   });
 
   redirect("/workspace/admin");
@@ -118,6 +139,18 @@ export async function suspendOrganization(formData: FormData) {
     request_id: rid,
   });
 
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId,
+    type: "compliance.organization.suspended",
+    severity: "critical",
+    title: "Organization suspended",
+    body: reason,
+    href: "/workspace",
+    dedupeKey: `org-suspended:${organizationId}`,
+    payload: { reason },
+  });
+
   redirect("/workspace/admin/organizations?ok=suspended");
 }
 
@@ -148,6 +181,16 @@ export async function reinstateOrganization(formData: FormData) {
     before_redacted: before ? { status: before.status } : null,
     after_redacted: { status: "active" },
     request_id: rid,
+  });
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    organizationId,
+    type: "compliance.organization.reinstated",
+    title: "Organization reinstated",
+    body: "Network access has been restored.",
+    href: "/workspace",
+    dedupeKey: `org-reinstated:${organizationId}:${rid}`,
   });
 
   redirect("/workspace/admin/organizations?ok=reinstated");
@@ -228,6 +271,30 @@ export async function createPayoutBatch(formData: FormData) {
     request_id: rid,
   });
 
+  const { emitNotification, formatCents } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "payout.batch.created",
+    title: "Payout batch drafted",
+    body: `${eligible.length} items totaling ${formatCents(total)} awaiting approval.`,
+    href: "/workspace/admin/finance",
+    dedupeKey: `payout-created:${batch.id}`,
+    payload: { batchId: batch.id, total_cents: total },
+  });
+  const publishers = new Set(eligible.map((t) => t.publisher_org_id as string));
+  for (const pubId of publishers) {
+    const amount = eligible
+      .filter((row) => row.publisher_org_id === pubId)
+      .reduce((s, row) => s + (row.publisher_amount_cents ?? 0), 0);
+    await emitNotification(supabase, {
+      organizationId: pubId,
+      type: "payout.pending",
+      title: "Payout pending approval",
+      body: `${formatCents(amount)} is in a draft batch.`,
+      href: "/workspace/publisher/earnings",
+      dedupeKey: `payout-pending:${batch.id}:${pubId}`,
+    });
+  }
+
   redirect(`/workspace/admin/finance?ok=batch_created&batch=${batch.id}`);
 }
 
@@ -266,6 +333,15 @@ export async function approvePayoutBatch(formData: FormData) {
     before_redacted: { status: batch.status },
     after_redacted: { status: "approved", total_cents: batch.total_cents },
     request_id: rid,
+  });
+
+  const { emitNotification, formatCents } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "payout.batch.approved",
+    title: "Payout batch approved",
+    body: `${formatCents(batch.total_cents)} is cleared for release.`,
+    href: "/workspace/admin/finance",
+    dedupeKey: `payout-approved:${batchId}`,
   });
 
   redirect(`/workspace/admin/finance?ok=approved&batch=${batchId}`);
@@ -400,6 +476,38 @@ export async function releasePayoutBatch(formData: FormData) {
     request_id: rid,
   });
 
+  const { emitNotification, formatCents } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "payout.batch.released",
+    severity: transferSummary.failed > 0 ? "warning" : "info",
+    title: "Payout batch released",
+    body: `${formatCents(batch.total_cents)} released. Transfers paid ${transferSummary.paid}, skipped ${transferSummary.skipped}, failed ${transferSummary.failed}.`,
+    href: "/workspace/admin/finance",
+    dedupeKey: `payout-released:${batchId}`,
+    payload: transferSummary,
+  });
+  const { data: releasedItems } = await supabase
+    .from("payout_items")
+    .select("publisher_org_id, amount_cents, transfer_status")
+    .eq("batch_id", batchId);
+  const releasedByPub = new Map<string, number>();
+  for (const it of releasedItems ?? []) {
+    releasedByPub.set(
+      it.publisher_org_id,
+      (releasedByPub.get(it.publisher_org_id) ?? 0) + (it.amount_cents ?? 0),
+    );
+  }
+  for (const [pubId, amount] of releasedByPub) {
+    await emitNotification(supabase, {
+      organizationId: pubId,
+      type: "payout.released",
+      title: "Payout released",
+      body: `${formatCents(amount)} is on its way to your connected account.`,
+      href: "/workspace/publisher/earnings",
+      dedupeKey: `payout-released:${batchId}:${pubId}`,
+    });
+  }
+
   redirect(`/workspace/admin/finance?ok=released&batch=${batchId}`);
 }
 
@@ -435,6 +543,16 @@ export async function cancelPayoutBatch(formData: FormData) {
     before_redacted: { status: batch.status },
     after_redacted: { status: "cancelled" },
     request_id: rid,
+  });
+
+  const { emitNotification } = await import("@/lib/notifications");
+  await emitNotification(supabase, {
+    type: "payout.batch.cancelled",
+    severity: "warning",
+    title: "Payout batch cancelled",
+    body: "Items were returned to the unpaid pool.",
+    href: "/workspace/admin/finance",
+    dedupeKey: `payout-cancelled:${batchId}`,
   });
 
   redirect(`/workspace/admin/finance?ok=cancelled&batch=${batchId}`);
