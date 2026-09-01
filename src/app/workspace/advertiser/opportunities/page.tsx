@@ -161,11 +161,9 @@ export default async function AdvertiserOpportunities({
               <span>TRANSACTION</span>
               <select name="transaction_id" required defaultValue={billableTxns[0]?.id}>
                 {billableTxns.map((t) => {
-                  const opp = t.opportunity_id ? oppMap.get(t.opportunity_id) : null;
-                  const label = t.public_transaction_id ?? opp?.public_transaction_id ?? t.id.slice(0, 8);
                   return (
                     <option key={t.id} value={t.id}>
-                      {label} · {money(t.advertiser_price_cents)} ·{" "}
+                      {money(t.advertiser_price_cents)} ·{" "}
                       {new Date(t.created_at).toLocaleDateString()}
                     </option>
                   );
