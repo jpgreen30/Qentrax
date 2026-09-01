@@ -4,6 +4,7 @@ import WorkspaceShell from "@/components/WorkspaceShell";
 import { createClient } from "@/lib/supabase/server";
 import { money } from "@/lib/workspace-data";
 import { LEAD_TYPES, PRICING_MODES } from "@/lib/offers/offer-input";
+import OfferBuilderFields from "@/components/offer-builder/OfferBuilderFields";
 import {
   createOffer,
   createFirstVersion,
@@ -74,7 +75,6 @@ export default async function AdminOffers({
       .order("version", { ascending: false });
     versions = (versionRows ?? []) as OfferVersionRow[];
 
-    // Only published schema versions may back an offer version.
     const { data: schemaRows } = await supabase
       .from("vertical_schema_versions")
       .select("id, version, vertical_id")
@@ -95,8 +95,8 @@ export default async function AdminOffers({
       initials="QX"
       active="offers"
       eyebrow="MARKETPLACE"
-      title="Offers"
-      subtitle="Publish what the network sells, and the terms it sells on."
+      title="Build a lead product"
+      subtitle="Define the payload, buyer controls, economics and compliance rules that become a versioned marketplace offer."
     >
       {params.error && <div className="formError">{params.error}</div>}
 
@@ -128,13 +128,9 @@ export default async function AdminOffers({
             <label>
               Vertical
               <select name="vertical_id" required defaultValue="">
-                <option value="" disabled>
-                  Choose a vertical
-                </option>
+                <option value="" disabled>Choose a vertical</option>
                 {(verticals ?? []).map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
+                  <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
               </select>
             </label>
@@ -159,21 +155,14 @@ export default async function AdminOffers({
             <span>LIFECYCLE</span>
             <h2>{selected ? selected.name : "Select an offer"}</h2>
           </header>
-
           {selected && (
             <>
               <div className="tableHead report">
-                <span>VERSION</span>
-                <span>STATUS</span>
-                <span>PRICING</span>
-                <span>PUBLISHED</span>
+                <span>VERSION</span><span>STATUS</span><span>PRICING</span><span>PUBLISHED</span>
               </div>
               {versions.map((v) => (
                 <div className="tableRow report" key={v.id}>
-                  <span>
-                    v{v.version}
-                    {v.id === selected.current_version_id && " · LIVE"}
-                  </span>
+                  <span>v{v.version}{v.id === selected.current_version_id && " · LIVE"}</span>
                   <span className="status">{v.status.toUpperCase()}</span>
                   <span>
                     {v.pricing_mode}
@@ -183,43 +172,24 @@ export default async function AdminOffers({
                   <span>{v.published_at ? v.published_at.slice(0, 10) : "—"}</span>
                 </div>
               ))}
-              {!versions.length && (
-                <div className="tableRow">
-                  <span className="status">No versions yet. Create the first below.</span>
-                </div>
-              )}
-
               {draft && (
                 <form action={publishOffer} className="stackForm">
                   <input type="hidden" name="offer_id" value={selected.id} />
                   <input type="hidden" name="version_id" value={draft.id} />
-                  <p className="hint">
-                    Publishing freezes v{draft.version} and makes it the live version.
-                  </p>
                   <button type="submit">PUBLISH v{draft.version}</button>
                 </form>
               )}
-
               {!draft && live && (
                 <form action={openOfferDraft} className="stackForm">
                   <input type="hidden" name="offer_id" value={selected.id} />
-                  <label>
-                    Draft notes
-                    <input name="notes" placeholder="Reprice, widen geography…" />
-                  </label>
-                  <p className="hint">
-                    Opens a new draft cloned from v{live.version}; published terms are
-                    never edited in place.
-                  </p>
+                  <label>Draft notes<input name="notes" /></label>
                   <button type="submit">OPEN NEW DRAFT</button>
                 </form>
               )}
-
               {selected.status !== "draft" && (
                 <form action={setOfferStatus} className="stackForm">
                   <input type="hidden" name="offer_id" value={selected.id} />
-                  <label>
-                    Marketplace status
+                  <label>Marketplace status
                     <select name="status" defaultValue={selected.status}>
                       <option value="published">published</option>
                       <option value="paused">paused</option>
@@ -235,128 +205,42 @@ export default async function AdminOffers({
       </div>
 
       {selected && (draft || !versions.length) && (
-        <article className="dashPanel">
-          <header>
-            <span>{draft ? `EDIT DRAFT v${draft.version}` : "FIRST VERSION"}</span>
-            <h2>Offer terms</h2>
-          </header>
-
+        <article className="dashPanel formPanel">
           {publishedSchemas.length === 0 ? (
             <div className="emptyState">
               <p>This vertical has no published schema version.</p>
-              <small>
-                Publish a schema in <Link href="/workspace/admin/verticals">Verticals</Link> before
-                an offer can define its payload contract.
-              </small>
+              <small>Publish a schema in <Link href="/workspace/admin/verticals">Verticals</Link> first.</small>
             </div>
           ) : (
-            <form
-              action={draft ? updateDraftVersion : createFirstVersion}
-              className="stackForm fieldBuilder"
-            >
+            <form action={draft ? updateDraftVersion : createFirstVersion}>
               <input type="hidden" name="offer_id" value={selected.id} />
               {draft && <input type="hidden" name="version_id" value={draft.id} />}
-              <div className="formGrid">
-                <label>
-                  Schema version
-                  <select
-                    name="schema_version_id"
-                    defaultValue={draft?.schema_version_id ?? publishedSchemas[0]?.id}
-                  >
-                    {publishedSchemas.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        schema v{s.version}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Lead type
-                  <select name="lead_type" defaultValue={draft?.lead_type ?? "exclusive"}>
-                    {LEAD_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Pricing mode
-                  <select name="pricing_mode" defaultValue={draft?.pricing_mode ?? "fixed"}>
-                    {PRICING_MODES.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Price ($)
-                  <input name="price" placeholder="45.00" defaultValue={dollars(draft?.price_cents ?? null)} />
-                </label>
-                <label>
-                  Floor ($)
-                  <input name="floor" defaultValue={dollars(draft?.floor_cents ?? null)} />
-                </label>
-                <label>
-                  Ceiling ($)
-                  <input name="ceiling" defaultValue={dollars(draft?.ceiling_cents ?? null)} />
-                </label>
-                <label>
-                  Include states
-                  <input
-                    name="states_include"
-                    placeholder="CA, NV"
-                    defaultValue={(draft ? geoStates(draft).include ?? [] : []).join(", ")}
-                  />
-                </label>
-                <label>
-                  Exclude states
-                  <input
-                    name="states_exclude"
-                    defaultValue={(draft ? geoStates(draft).exclude ?? [] : []).join(", ")}
-                  />
-                </label>
-                <label>
-                  Include ZIPs
-                  <input name="zips_include" placeholder="90210, 94110" />
-                </label>
-                <label>
-                  Exclude ZIPs
-                  <input name="zips_exclude" />
-                </label>
-                <label>
-                  Max lead age (minutes)
-                  <input
-                    name="max_lead_age_minutes"
-                    type="number"
-                    defaultValue={
-                      draft?.max_lead_age_seconds ? draft.max_lead_age_seconds / 60 : ""
-                    }
-                  />
-                </label>
-                <label>
-                  Verification
-                  <input name="verification" placeholder="phone_verified" />
-                </label>
-                <label>
-                  Min quality score
-                  <input name="min_quality_score" type="number" min="0" max="100" />
-                </label>
-                <label>
-                  Return window (hours)
-                  <input name="return_window_hours" type="number" />
-                </label>
-                <label className="wide">
-                  Accepted return reasons
-                  <input name="return_reasons" placeholder="duplicate, invalid_phone" />
-                </label>
-                <label className="inlineCheck">
-                  <input
-                    type="checkbox"
-                    name="require_consent"
-                    defaultChecked={Boolean(draft?.requirements_json?.consent_required)}
-                  />
-                  Require consent evidence
-                </label>
-              </div>
-              <button type="submit">{draft ? "SAVE DRAFT" : "CREATE VERSION 1"}</button>
+              <OfferBuilderFields
+                offerName={selected.name}
+                schemas={publishedSchemas}
+                leadTypes={LEAD_TYPES}
+                pricingModes={PRICING_MODES}
+                submitLabel={draft ? "Save draft" : "Create version 1"}
+                draft={{
+                  schema_version_id: draft?.schema_version_id,
+                  lead_type: draft?.lead_type,
+                  pricing_mode: draft?.pricing_mode,
+                  price: dollars(draft?.price_cents ?? null),
+                  floor: dollars(draft?.floor_cents ?? null),
+                  ceiling: dollars(draft?.ceiling_cents ?? null),
+                  states_include: (draft ? geoStates(draft).include ?? [] : []).join(", "),
+                  states_exclude: (draft ? geoStates(draft).exclude ?? [] : []).join(", "),
+                  max_lead_age_minutes: draft?.max_lead_age_seconds ? String(draft.max_lead_age_seconds / 60) : "5",
+                  verification: String(draft?.requirements_json?.verification ?? ""),
+                  min_quality_score: String(draft?.requirements_json?.min_quality_score ?? ""),
+                  return_window_hours: String((draft?.return_policy_json?.window_hours as number | undefined) ?? "72"),
+                  return_reasons: Array.isArray(draft?.return_policy_json?.accepted_reasons)
+                    ? (draft.return_policy_json.accepted_reasons as string[]).join(", ")
+                    : "",
+                  require_consent: Boolean(draft?.requirements_json?.consent_required),
+                  field_profile: String(draft?.requirements_json?.field_profile ?? "short"),
+                }}
+              />
             </form>
           )}
         </article>
